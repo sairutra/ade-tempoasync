@@ -1,6 +1,7 @@
 const { WebSocketServer } = require("ws");
 const debug = require("debug")("server:ws");
 const { parseMessage, ProtocolError } = require("./messages");
+var app = require("../app");
 
 /**
  * Accepts the timeline sync socket on `path` of an existing HTTP server and applies every client
@@ -23,7 +24,9 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+    wss.handleUpgrade(req, socket, head, (ws) =>
+      wss.emit("connection", ws, req),
+    );
   });
 
   wss.on("connection", (ws, req) => {
@@ -31,14 +34,25 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
     debug("timeline client connected (%s)", who);
 
     ws.on("message", (data, isBinary) => {
-      if (isBinary) return reject(ws, new ProtocolError("binary frames are not supported"));
+      if (isBinary)
+        return reject(ws, new ProtocolError("binary frames are not supported"));
       let msg;
       try {
         msg = parseMessage(data);
         store.apply(msg);
       } catch (err) {
-        if (!(err instanceof ProtocolError)) console.error("timeline socket: failed to apply message", err);
-        return reject(ws, err instanceof ProtocolError ? err : new Error("internal error"));
+        if (!(err instanceof ProtocolError))
+          console.error("timeline socket: failed to apply message", err);
+        return reject(
+          ws,
+          err instanceof ProtocolError ? err : new Error("internal error"),
+        );
+      }
+      if (msg.type === "addTrack") {
+        app.locals.project.addChannel(msg.id, msg.channel, msg.bpms);
+      }
+      if (msg.type === "patch") {
+        // add patch functionality
       }
       debug("%s %s", msg.type, describe(msg));
     });
