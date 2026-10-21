@@ -9,6 +9,7 @@ router.get('/', function(req, res, next) {
 
 module.exports = router;
 
+// testing nonsense
 router.get('/test', (req, res) => {
 	const ll = new DoublyLinkedList;
 	for (i = 0; i < 10; i++) {
@@ -19,6 +20,7 @@ router.get('/test', (req, res) => {
 
 })
 
+// testing nonsense
 router.post('/seq', (req, res) => {
 	console.log(req.body.sequence)
 	res.send("yo");

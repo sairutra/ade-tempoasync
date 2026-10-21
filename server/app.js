@@ -9,15 +9,14 @@ var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 
 var app = express();
+// creating a Project object
 const project = new projectClass;
+
+// Adding a channel called "momo", that has channel nr 1
 project.addChannel("momo", 1);
-project.addChannel("a", 2);
-project.addChannel("b", 3);
-project.addChannel("c", 88);
-project.printChannels();
+
+// Accessing the channel "momo" and setting its BPMvalues
 project.channels.get("momo").setBPMvalues([0, 1]);
-project.addChannel("aaaa", 8118);
-project.printChannels();
 
 // view engine setup
 app.set("views", path.join(__dirname, "views"));

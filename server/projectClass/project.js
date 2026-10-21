@@ -7,7 +7,6 @@ class Project {
 		this.stepLength = 16;
 	}
 
-
 	setMasterBPM(BPM) {
 		this.masterBPM = BPM;
 	}
