@@ -28,6 +28,15 @@ router.post('/seq', (req, res) => {
 	res.send("yo");
 })
 
+router.post('/createChannel', (req, res) => {
+	let name = req.body.name;
+	let id = req.body.id;
+	let BPMvalues = req.body.BPMvalues;
+
+	req.app.locals.project.addChannel(name, id, BPMvalues);
+	// req.app.locals.project.channels.get(name).sayHi();
+})
+
 router.post('/message', (req, res) => {
   let note = req.body.note;
   let bpm = req.body.bpm;
