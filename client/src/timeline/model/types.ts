@@ -6,6 +6,10 @@
  * `startStep + i` with BPM `bpms[i]`. Storing a start plus a dense array (rather than x per point)
  * makes "two points on one step" and "a gap" unrepresentable. Nothing is drawn before
  * `startStep`; after the last point the line holds the last BPM to the end of the content.
+ *
+ * `nodes` are the editing nodes: indices into `bpms` where the line may bend. Between two
+ * consecutive nodes the points lie on the straight line joining them (see model/nodes.ts), so the
+ * nodes are the shape and `bpms` is that shape sampled once per step (what playback reads).
  */
 export type Track = {
   id: string
@@ -14,10 +18,18 @@ export type Track = {
   startStep: number
   /** bpms[i] is the BPM at step startStep + i. Never empty. Not clamped: see bpmMin/bpmMax. */
   bpms: number[]
+  /**
+   * Indices into `bpms`, strictly increasing, always containing 0 and bpms.length - 1.
+   * Derived from `bpms` on load when absent (see createTimelineState).
+   */
+  nodes: number[]
   /** Offset into the source audio where playback starts, in seconds. */
   sourceOffset: number
   color?: string
 }
+
+/** A track as supplied from outside: nodes are derived from the points when omitted. */
+export type TrackInput = Omit<Track, 'nodes'> & { nodes?: number[] }
 
 /** Tracks by id. Display order is derived (see getOrderedTracks), not stored. */
 export type TimelineState = {

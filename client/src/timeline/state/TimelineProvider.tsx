@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
+import { modelReducer } from '../model/editReducer'
 import { getTimelineDuration } from '../model/selectors'
 import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
@@ -29,15 +30,29 @@ export type ViewportActions = {
   zoomToFit: () => void
 }
 
+/** Node indices are offsets from the track's startStep. Stable for the provider's lifetime. */
+export type ModelActions = {
+  addNode: (trackId: string, index: number) => void
+  setNodeBpm: (trackId: string, index: number, bpm: number) => void
+}
+
 type ViewportContextValue = ViewportState & { actions: ViewportActions }
 
 const ModelContext = createContext<TimelineState | null>(null)
+const ModelActionsContext = createContext<ModelActions | null>(null)
 const ViewportContext = createContext<ViewportContextValue | null>(null)
 const ClockContext = createContext<TransportClock | null>(null)
 
 export function TimelineProvider({ initialState, children }: { initialState: TimelineState; children: ReactNode }) {
-  // Read-only for milestones 1–2; editing (milestone 3) adds a model reducer + undo stack here.
-  const [model] = useState(initialState)
+  // Undo can wrap this reducer later (past/present/future) without touching the components.
+  const [model, modelDispatch] = useReducer(modelReducer, initialState)
+  const modelActions = useMemo<ModelActions>(
+    () => ({
+      addNode: (trackId, index) => modelDispatch({ type: 'addNode', trackId, index }),
+      setNodeBpm: (trackId, index, bpm) => modelDispatch({ type: 'setNodeBpm', trackId, index, bpm }),
+    }),
+    [],
+  )
   const duration = useMemo(() => getTimelineDuration(model), [model])
   const [viewportState, dispatch] = useReducer(viewportReducer, duration, initViewportState)
 
@@ -68,9 +83,11 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
 
   return (
     <ModelContext.Provider value={model}>
-      <ViewportContext.Provider value={viewportValue}>
-        <ClockContext.Provider value={clock}>{children}</ClockContext.Provider>
-      </ViewportContext.Provider>
+      <ModelActionsContext.Provider value={modelActions}>
+        <ViewportContext.Provider value={viewportValue}>
+          <ClockContext.Provider value={clock}>{children}</ClockContext.Provider>
+        </ViewportContext.Provider>
+      </ModelActionsContext.Provider>
     </ModelContext.Provider>
   )
 }
@@ -79,6 +96,12 @@ export function useTimelineModel(): TimelineState {
   const model = useContext(ModelContext)
   if (!model) throw new Error('useTimelineModel must be used inside <TimelineProvider>')
   return model
+}
+
+export function useModelActions(): ModelActions {
+  const actions = useContext(ModelActionsContext)
+  if (!actions) throw new Error('useModelActions must be used inside <TimelineProvider>')
+  return actions
 }
 
 export function useViewport(): ViewportContextValue {

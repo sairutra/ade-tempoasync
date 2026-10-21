@@ -9,9 +9,9 @@ import {
   getTimelineDuration,
   trackLastStep,
 } from './selectors'
-import type { Track } from './types'
+import type { TrackInput } from './types'
 
-const t = (id: string, name: string, startStep: number, bpms: number[] = [120]): Track => ({
+const t = (id: string, name: string, startStep: number, bpms: number[] = [120]): TrackInput => ({
   id,
   name,
   startStep,

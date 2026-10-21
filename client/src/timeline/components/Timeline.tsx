@@ -1,7 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent } from 'react'
 import { getOrderedTracks } from '../model/selectors'
 import { stepToTime, timeToStep } from '../model/tempo'
-import { useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
+import { useModelActions, useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
 import { contentWidth, visibleTimeRange, xToTime } from '../viewport/viewport'
 import { GridCanvas } from './GridCanvas'
 import { Playhead } from './Playhead'
@@ -21,6 +21,7 @@ export function Timeline() {
   const model = useTimelineModel()
   const { viewport, bounds, actions } = useViewport()
   const clock = useTransportClock()
+  const modelActions = useModelActions()
 
   const rootRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -111,6 +112,8 @@ export function Timeline() {
                         bpmMin={model.bpmMin}
                         bpmMax={model.bpmMax}
                         contentEndStep={contentEndStep}
+                        onAddNode={modelActions.addNode}
+                        onSetNodeBpm={modelActions.setNodeBpm}
                       />
                     ),
                   )}
