@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var DoublyLinkedList = require('../utils/linked_list.js');
+var Message = require('../utils/message.js');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -45,4 +46,18 @@ router.post('/updateBPMvalues', (req, res) => {
 	let channel = req.app.locals.project.channels.get(channelName);
 	channel.updateBPMvalues(start, end, values);
 	res.send("ok");
+})
+
+router.post('/message', (req, res) => {
+  let note = req.body.note;
+  let bpm = req.body.bpm;
+
+  req.app.locals.project.addChannel("momo", 1, [0, 1, 1]);
+  const msg = req.app.locals.project.channels.get("momo").createMessage(note, bpm);
+  const midi = req.app.locals.midiAccess;
+  console.log(msg);
+  console.log(midi);
+
+  msg.sendMessage(midi, 'Renoise MIDI-In');
+  res.send(":)");
 })
