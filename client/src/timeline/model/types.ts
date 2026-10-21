@@ -1,25 +1,23 @@
-/** All times are in seconds. Pixels never appear in the model. */
-export type Clip = {
-  id: string
-  trackId: string
-  /** Timeline position of the clip's left edge. */
-  start: number
-  duration: number
-  /** Offset into the source audio where playback starts (used by trim, milestone 3+). */
-  sourceOffset: number
-  name: string
-  color?: string
-}
-
+/**
+ * All times are in seconds; vertical position is a 0–1 fraction of the lane area.
+ * Pixels never appear in the model.
+ *
+ * A track is a single line: it starts at `start`, runs for `duration`, and sits at `y`.
+ */
 export type Track = {
   id: string
   name: string
-  clipIds: string[]
+  /** Timeline position of the line's left edge. */
+  start: number
+  duration: number
+  /** Offset into the source audio where playback starts. */
+  sourceOffset: number
+  /** Vertical position inside the lane area: 0 = top, 1 = bottom. */
+  y: number
+  color?: string
 }
 
-/** Normalized: entities by id, plus explicit track order. */
+/** Tracks by id. Display order is derived (see getOrderedTracks), not stored. */
 export type TimelineState = {
   tracks: Record<string, Track>
-  trackOrder: string[]
-  clips: Record<string, Clip>
 }

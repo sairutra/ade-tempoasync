@@ -1,16 +1,16 @@
-import { useEffect, useRef } from 'react'
-import { getOrderedTracks } from '../model/selectors'
+import { useEffect, useRef, type CSSProperties } from 'react'
+import { getOrderedTracks, trackEnd } from '../model/selectors'
 import { useTimelineModel, useViewport } from '../state/TimelineProvider'
 import { contentWidth, visibleTimeRange } from '../viewport/viewport'
 import { GridCanvas } from './GridCanvas'
 import { Ruler } from './Ruler'
 import { Scrollbar } from './Scrollbar'
 import { TrackHeader } from './TrackHeader'
-import { TrackLane } from './TrackLane'
+import { TrackLine } from './TrackLine'
 import { useWheelZoomScroll } from './useWheelZoomScroll'
 import './Timeline.css'
 
-/** Clips this far outside the view stay mounted, so small scrolls don't churn the DOM. */
+/** Lines this far outside the view stay mounted, so small scrolls don't churn the DOM. */
 const OVERSCAN_PX = 200
 const ZOOM_STEP = 1.5
 
@@ -38,7 +38,7 @@ export function Timeline() {
   const width = contentWidth(viewport.pxPerSecond, bounds)
 
   return (
-    <div ref={rootRef} className="tl">
+    <div ref={rootRef} className="tl" style={{ '--tl-track-count': tracks.length } as CSSProperties}>
       <div className="tl-toolbar">
         <button type="button" onClick={() => zoomCentered(1 / ZOOM_STEP)} aria-label="Zoom out">−</button>
         <button type="button" onClick={() => zoomCentered(ZOOM_STEP)} aria-label="Zoom in">+</button>
@@ -55,21 +55,18 @@ export function Timeline() {
             ))}
           </div>
           <div ref={lanesRef} className="tl-lanes">
-            {/* One transform for scroll; clips are positioned in content space (see timeToContentX). */}
+            {/* One transform for scroll; lines are positioned in content space (see timeToContentX). */}
             <div
               className="tl-lanes-content"
               style={{ width: Math.max(width, bounds.viewWidth), transform: `translateX(${-viewport.scrollX}px)` }}
             >
-              {tracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  clips={model.clips}
-                  pxPerSecond={viewport.pxPerSecond}
-                  visibleStart={visibleStart}
-                  visibleEnd={visibleEnd}
-                />
-              ))}
+              <div className="tl-lines">
+                {tracks.map((track) =>
+                  track.start > visibleEnd || trackEnd(track) < visibleStart ? null : (
+                    <TrackLine key={track.id} track={track} pxPerSecond={viewport.pxPerSecond} />
+                  ),
+                )}
+              </div>
             </div>
           </div>
         </div>
