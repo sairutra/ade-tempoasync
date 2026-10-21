@@ -72,6 +72,15 @@ describe('TimelineSocket connection', () => {
     ])
   })
 
+  it('includes the channel number in the snapshot for tracks that have one', () => {
+    socket.latest = { ...state, tracks: { a: { ...state.tracks.a, channel: 5 } } }
+    socket.connect()
+    MockWebSocket.last().open()
+    expect(MockWebSocket.last().sent).toEqual([
+      { type: 'snapshot', projectBpm: 120, tracks: [{ id: 'a', bpms: [100, 110], channel: 5 }] },
+    ])
+  })
+
   it('drops messages while not open', () => {
     socket.connect()
     const ws = MockWebSocket.last()

@@ -12,6 +12,16 @@ describe('TrackHeader', () => {
     expect(html).toContain('class="tl-track-swatch"')
   })
 
+  it('shows the channel number when the track has one', () => {
+    const html = renderToStaticMarkup(<TrackHeader track={{ ...track, channel: 7 }} />)
+    expect(html).toContain('class="tl-track-channel"')
+    expect(html).toContain('CH 7')
+  })
+
+  it('shows no channel badge without a channel', () => {
+    expect(renderToStaticMarkup(<TrackHeader track={track} />)).not.toContain('tl-track-channel')
+  })
+
   it('leaves the variable unset without a colour, so the swatch falls back like the line', () => {
     const html = renderToStaticMarkup(<TrackHeader track={{ ...track, color: undefined }} />)
     expect(html).not.toContain('--tl-line-color')

@@ -24,6 +24,8 @@ export type Track = {
   /** Offset into the source audio where playback starts, in seconds. */
   sourceOffset: number
   color?: string
+  /** Output channel, an integer in [CHANNEL_MIN, CHANNEL_MAX] (see newTrack.ts). Absent on tracks loaded without one. */
+  channel?: number
 }
 
 /** A track as supplied from outside: nodes are derived from the points when omitted. */

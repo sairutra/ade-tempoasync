@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { usedColors } from '../model/newTrack'
+import { suggestChannel, usedColors } from '../model/newTrack'
 import { getOrderedTracks } from '../model/selectors'
 import { timeToStep } from '../model/tempo'
 import { useModelActions, useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
@@ -38,6 +38,7 @@ export function Timeline() {
   }, [scrollableY])
   const [addingChannel, setAddingChannel] = useState(false)
   const colorsInUse = useMemo(() => usedColors(model), [model])
+  const nextChannel = useMemo(() => suggestChannel(model), [model])
 
   // The lane area's size is the viewport size; it drives clamping and zoom-to-fit on both axes.
   useEffect(() => {
@@ -199,6 +200,7 @@ export function Timeline() {
         open={addingChannel}
         usedColors={colorsInUse}
         defaultBpm={model.projectBpm}
+        defaultChannel={nextChannel}
         onClose={() => setAddingChannel(false)}
         onSubmit={(channel) => {
           // Like every line, the new one spans the whole timeline from step 0.

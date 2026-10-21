@@ -3,11 +3,11 @@ const { ProtocolError } = require("./messages");
 
 /**
  * The server's copy of the timeline: the project BPM and, per track, `bpms` (bpms[i] is the BPM of
- * step i). The client is the source of truth, so this only applies what it is sent.
+ * step i) and its `channel` (1–16) when the client sent one. The client is the source of truth, so this only applies what it is sent.
  *
  * Emits after every applied message:
  *   'snapshot'   (store)
- *   'track'      (trackId, bpms, { from, to })   — a track was added or edited; [from, to) changed
+ *   'track'      (trackId, bpms, { from, to }, channel) — a track was added or edited; [from, to) changed
  *   'projectBpm' (bpm)
  * Playback can subscribe to these instead of reading WebSocket messages itself.
  */
@@ -17,6 +17,8 @@ class TimelineStore extends EventEmitter {
     this.projectBpm = null;
     /** @type {Map<string, number[]>} */
     this.tracks = new Map();
+    /** @type {Map<string, number>} Channel per track id; tracks sent without one are absent. */
+    this.channels = new Map();
   }
 
   /** Applies a message validated by parseMessage(). Throws ProtocolError if it doesn't fit the state. */
@@ -25,12 +27,15 @@ class TimelineStore extends EventEmitter {
       case "snapshot":
         this.projectBpm = msg.projectBpm;
         this.tracks = new Map(msg.tracks.map((t) => [t.id, t.bpms.slice()]));
+        this.channels = new Map(msg.tracks.filter((t) => t.channel !== undefined).map((t) => [t.id, t.channel]));
         this.emit("snapshot", this);
         return;
       case "addTrack":
         // Re-adding an id replaces it: a reconnect race can't leave a stale line behind.
         this.tracks.set(msg.id, msg.bpms.slice());
-        this.emit("track", msg.id, this.tracks.get(msg.id), { from: 0, to: msg.bpms.length });
+        if (msg.channel === undefined) this.channels.delete(msg.id);
+        else this.channels.set(msg.id, msg.channel);
+        this.emit("track", msg.id, this.tracks.get(msg.id), { from: 0, to: msg.bpms.length }, this.channels.get(msg.id));
         return;
       case "patch":
         this.applyPatch(msg);
@@ -60,13 +65,15 @@ class TimelineStore extends EventEmitter {
       while (bpms.length < length) bpms.push(bpms[bpms.length - 1]);
       to = Math.min(Math.max(to, length), bpms.length);
     }
-    this.emit("track", trackId, bpms, { from: Math.min(from, bpms.length), to });
+    this.emit("track", trackId, bpms, { from: Math.min(from, bpms.length), to }, this.channels.get(trackId));
   }
 
   toJSON() {
     return {
       projectBpm: this.projectBpm,
-      tracks: [...this.tracks].map(([id, bpms]) => ({ id, bpms })),
+      tracks: [...this.tracks].map(([id, bpms]) =>
+        this.channels.has(id) ? { id, bpms, channel: this.channels.get(id) } : { id, bpms },
+      ),
     };
   }
 }

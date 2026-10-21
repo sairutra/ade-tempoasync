@@ -60,7 +60,7 @@ function describe(msg) {
     case "snapshot":
       return `${msg.tracks.length} track(s) @ ${msg.projectBpm} BPM`;
     case "addTrack":
-      return `${msg.id} (${msg.bpms.length} steps)`;
+      return `${msg.id} (${msg.bpms.length} steps${msg.channel === undefined ? "" : `, channel ${msg.channel}`})`;
     case "patch":
       return `${msg.trackId} [${msg.from}, ${msg.from + msg.bpms.length})`;
     case "projectBpm":

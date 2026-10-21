@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { TimelineState } from '../model/types'
+import { withChannel } from './protocol'
 import { changedRange } from './diff'
 import type { TimelineSocket } from './socket'
 
@@ -16,7 +17,7 @@ export function sendModelChanges(prev: TimelineState, next: TimelineState, sink:
     const old = prev.tracks[track.id]
     if (old?.bpms === track.bpms) continue
     if (!old) {
-      sink.send({ type: 'addTrack', id: track.id, bpms: track.bpms })
+      sink.send(withChannel({ type: 'addTrack', id: track.id, bpms: track.bpms }, track.channel))
       continue
     }
     const range = changedRange(old.bpms, track.bpms)

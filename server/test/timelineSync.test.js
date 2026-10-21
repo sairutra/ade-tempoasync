@@ -25,6 +25,11 @@ test("parseMessage rejects malformed messages", () => {
     JSON.stringify({ type: "patch", trackId: "a", from: 0, bpms: [100, "x"] }),
     JSON.stringify({ type: "patch", trackId: "", from: 0, bpms: [100] }),
     JSON.stringify({ type: "projectBpm", bpm: 0 }),
+    JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: 0 }),
+    JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: 17 }),
+    JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: 2.5 }),
+    JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: "3" }),
+    JSON.stringify({ type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [1], channel: 99 }] }),
     JSON.stringify({ type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [1] }, { id: "a", bpms: [1] }] }),
   ]) {
     assert.throws(() => parseMessage(raw), ProtocolError, raw);
@@ -71,6 +76,24 @@ test("snapshot replaces everything; addTrack and projectBpm update it", () => {
       { id: "d", bpms: [70] },
     ],
   });
+});
+
+test("channel numbers are stored from addTrack and snapshot and survive patches", () => {
+  const store = storeWith({ a: [100] });
+  const events = [];
+  store.on("track", (id, _bpms, _range, channel) => events.push([id, channel]));
+  apply(store, { type: "addTrack", id: "b", bpms: [90, 90], channel: 16 });
+  apply(store, { type: "patch", trackId: "b", from: 0, bpms: [95] });
+  assert.deepEqual(events, [["b", 16], ["b", 16]]);
+  assert.deepEqual(store.toJSON().tracks, [
+    { id: "a", bpms: [100] },
+    { id: "b", bpms: [95, 90], channel: 16 },
+  ]);
+  apply(store, { type: "snapshot", projectBpm: 120, tracks: [{ id: "c", bpms: [80], channel: 1 }] });
+  assert.deepEqual(store.toJSON().tracks, [{ id: "c", bpms: [80], channel: 1 }]);
+  // Re-adding without a channel clears it.
+  apply(store, { type: "addTrack", id: "c", bpms: [80] });
+  assert.deepEqual(store.toJSON().tracks, [{ id: "c", bpms: [80] }]);
 });
 
 test("WebSocket on /ws applies client messages and answers bad ones with an error", async (t) => {

@@ -2,8 +2,8 @@
  * Validation for client → server timeline messages. Mirrors ClientMessage in
  * client/src/timeline/sync/protocol.ts:
  *
- *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms }] }
- *   { type: 'addTrack', id, bpms }
+ *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel? }] }
+ *   { type: 'addTrack', id, bpms, channel? }        // channel: integer 1–16
  *   { type: 'patch', trackId, from, bpms, length? } // replaces bpms[from .. from + bpms.length), then sets the line to `length` steps
  *   { type: 'projectBpm', bpm }
  *
@@ -28,6 +28,16 @@ function isIndex(value) {
 
 function isId(value) {
   return typeof value === "string" && value.length > 0;
+}
+
+const CHANNEL_MIN = 1;
+const CHANNEL_MAX = 16;
+
+function checkChannel(channel, where) {
+  if (channel === undefined) return;
+  if (!Number.isInteger(channel) || channel < CHANNEL_MIN || channel > CHANNEL_MAX) {
+    throw new ProtocolError(`${where}: channel must be an integer between ${CHANNEL_MIN} and ${CHANNEL_MAX}`);
+  }
 }
 
 function checkBpms(bpms, where, { allowEmpty = false } = {}) {
@@ -61,12 +71,14 @@ function parseMessage(raw) {
         if (seen.has(track.id)) throw new ProtocolError(`snapshot: duplicate track id ${track.id}`);
         seen.add(track.id);
         checkBpms(track.bpms, `snapshot track ${track.id}`);
+        checkChannel(track.channel, `snapshot track ${track.id}`);
       }
       return msg;
     }
     case "addTrack":
       if (!isId(msg.id)) throw new ProtocolError("addTrack: id must be a non-empty string");
       checkBpms(msg.bpms, `addTrack ${msg.id}`);
+      checkChannel(msg.channel, `addTrack ${msg.id}`);
       return msg;
     case "patch":
       if (!isId(msg.trackId)) throw new ProtocolError("patch: trackId must be a non-empty string");
@@ -84,4 +96,4 @@ function parseMessage(raw) {
   }
 }
 
-module.exports = { parseMessage, ProtocolError };
+module.exports = { parseMessage, ProtocolError, CHANNEL_MIN, CHANNEL_MAX };
