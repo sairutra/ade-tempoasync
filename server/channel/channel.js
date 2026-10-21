@@ -1,7 +1,7 @@
 class Channel {
-	constructor(channel) {
+	constructor(channel, BPMvalues) {
 		this.id = channel;
-		this.BPMvalues = []; //array van ints -> BPM per step
+		this.BPMvalues = BPMvalues; //array van ints -> BPM per step
 		this.sequence = []; // array van ints -> noten
 
 	}
@@ -17,6 +17,10 @@ class Channel {
 		} else {
 			console.error("setBPMvalues method called for channel " + this.id + " with empty array");
 		};
+	}
+
+	sayHi() {
+		console.log("hi from channel " + this.id);
 	}
 }
 
