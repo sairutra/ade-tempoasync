@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { modelReducer } from '../model/editReducer'
 import type { NewTrackInput } from '../model/newTrack'
-import { getTimelineDuration } from '../model/selectors'
+import { createEmptyTimelineState, getTimelineDuration } from '../model/selectors'
 import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
 import { TransportClock } from '../playback/transportClock'
@@ -59,9 +59,15 @@ const ModelActionsContext = createContext<ModelActions | null>(null)
 const ViewportContext = createContext<ViewportContextValue | null>(null)
 const ClockContext = createContext<TransportClock | null>(null)
 
-export function TimelineProvider({ initialState, children }: { initialState: TimelineState; children: ReactNode }) {
+export type TimelineProviderProps = {
+  /** Starting model, read once on mount. null or omitted starts from an empty timeline. */
+  initialState?: TimelineState | null
+  children: ReactNode
+}
+
+export function TimelineProvider({ initialState = null, children }: TimelineProviderProps) {
   // Undo can wrap this reducer later (past/present/future) without touching the components.
-  const [model, modelDispatch] = useReducer(modelReducer, initialState)
+  const [model, modelDispatch] = useReducer(modelReducer, initialState, (s) => s ?? createEmptyTimelineState())
   const modelActions = useMemo<ModelActions>(
     () => ({
       addNode: (trackId, index) => modelDispatch({ type: 'addNode', trackId, index }),

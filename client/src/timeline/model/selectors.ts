@@ -94,3 +94,8 @@ export function createTimelineState(tracks: TrackInput[], options: TimelineOptio
   }
   return state
 }
+
+/** A model with no tracks and the default project BPM and BPM range. */
+export function createEmptyTimelineState(): TimelineState {
+  return createTimelineState([])
+}
