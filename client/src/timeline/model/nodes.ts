@@ -123,60 +123,46 @@ export function removeNode(line: Line, index: number): Line {
   return { bpms, nodes: [...line.nodes.slice(0, k), ...line.nodes.slice(k + 1)] }
 }
 
-/** A line with its position: what a horizontal node move can change. */
-type PlacedLine = Line & { startStep: number }
-
 /**
- * Absolute steps node `index` may move to horizontally: strictly between its neighbours, so it can
- * never reach or pass them (at most one step after the previous node, one step before the next).
- * The first node can move back to step 0, which moves the start of the line; the last node can move
- * forward without limit, stretching its segment (`max` is Infinity).
+ * Steps node `index` may move to horizontally: strictly between its neighbours, so it can never
+ * reach or pass them (at most one step after the previous node, one step before the next). The first
+ * node is pinned to step 0, because every line starts there (`min` = `max` = 0); the last node can
+ * move forward without limit, stretching its segment (`max` is Infinity). Steps equal indices.
  */
-export function nodeMoveRange(line: PlacedLine, index: number): { min: number; max: number } {
+export function nodeMoveRange(line: Line, index: number): { min: number; max: number } {
   const k = line.nodes.indexOf(index)
   if (k === -1) throw new Error(`Step ${index} is not a node`)
-  const { startStep, nodes } = line
-  const min = k > 0 ? startStep + nodes[k - 1] + 1 : Math.min(0, startStep)
-  const max = k < nodes.length - 1 ? startStep + nodes[k + 1] - 1 : Infinity
+  if (k === 0) return { min: 0, max: 0 }
+  const { nodes } = line
+  const min = nodes[k - 1] + 1
+  const max = k < nodes.length - 1 ? nodes[k + 1] - 1 : Infinity
   return { min, max }
 }
 
 /**
- * Moves node `index` horizontally to absolute step `toStep` (clamped by nodeMoveRange), keeping its
- * BPM, and redraws the segments either side of it as the straight lines to its neighbours. The other
- * nodes keep their absolute steps and BPMs, so a move is lossless: moving back restores the line.
+ * Moves node `index` horizontally to step `toStep` (clamped by nodeMoveRange), keeping its BPM, and
+ * redraws the segments either side of it as the straight lines to its neighbours. The other nodes
+ * keep their steps and BPMs, so a move is lossless: moving back restores the line.
  *
- * Moving the first node moves the start of the line (startStep) and re-indexes the rest; moving the
- * last node lengthens or shortens the line (it holds its last BPM past the end, as before).
+ * The first node never moves (the line always starts at step 0); moving the last node lengthens or
+ * shortens the points (the line holds its last BPM past them to the end of the timeline, as before).
  */
-export function moveNode(line: PlacedLine, index: number, toStep: number): PlacedLine {
+export function moveNode(line: Line, index: number, toStep: number): Line {
   const { min, max } = nodeMoveRange(line, index)
-  const target = Math.min(max, Math.max(min, Math.round(toStep)))
-  const { startStep, bpms, nodes } = line
-  const to = target - startStep // relative to the current start; negative only for the first node
+  const to = Math.min(max, Math.max(min, Math.round(toStep)))
   if (to === index) return line
+  const { bpms, nodes } = line
   const k = nodes.indexOf(index)
   const last = nodes.length - 1
   const bpm = bpms[index]
-
-  if (k === 0) {
-    // Re-index everything after the first node from the new start.
-    const shift = -to
-    const rest = nodes.slice(1)
-    if (rest.length === 0) return { startStep: target, bpms, nodes }
-    const next = rest[0]
-    const newBpms = [bpm, ...Array<number>(next + shift - 1).fill(0), ...bpms.slice(next)]
-    resample(newBpms, 0, next + shift)
-    return { startStep: target, bpms: newBpms, nodes: [0, ...rest.map((i) => i + shift)] }
-  }
-
   const prev = nodes[k - 1]
+
   if (k === last) {
     const newBpms = bpms.slice(0, Math.min(bpms.length, to + 1))
     while (newBpms.length < to + 1) newBpms.push(0)
     newBpms[to] = bpm
     resample(newBpms, prev, to)
-    return { startStep, bpms: newBpms, nodes: [...nodes.slice(0, last), to] }
+    return { bpms: newBpms, nodes: [...nodes.slice(0, last), to] }
   }
 
   const newBpms = bpms.slice()
@@ -185,7 +171,7 @@ export function moveNode(line: PlacedLine, index: number, toStep: number): Place
   resample(newBpms, to, nodes[k + 1])
   const newNodes = nodes.slice()
   newNodes[k] = to
-  return { startStep, bpms: newBpms, nodes: newNodes }
+  return { bpms: newBpms, nodes: newNodes }
 }
 
 /**

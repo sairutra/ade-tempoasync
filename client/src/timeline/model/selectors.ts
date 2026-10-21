@@ -8,14 +8,14 @@ export const END_PADDING_SECONDS = 2
 export const DEFAULT_BPM_MIN = 60
 export const DEFAULT_BPM_MAX = 200
 
-/** Step of the track's last point. */
-export function trackLastStep(track: Pick<Track, 'startStep' | 'bpms'>): number {
-  return track.startStep + track.bpms.length - 1
+/** Step of the track's last point (every line starts at step 0). */
+export function trackLastStep(track: Pick<Track, 'bpms'>): number {
+  return track.bpms.length - 1
 }
 
-/** Header order: by start step, ties broken alphabetically by name (then id, so it's total). */
+/** Header order: alphabetically by name, then id so it's total. Every line starts at step 0. */
 export function compareTracks(a: Track, b: Track): number {
-  return a.startStep - b.startStep || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+  return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
 }
 
 export function getOrderedTracks(state: TimelineState): Track[] {
@@ -59,7 +59,6 @@ export function createTimelineState(tracks: TrackInput[], options: TimelineOptio
   const state: TimelineState = { tracks: {}, projectBpm, bpmMin, bpmMax }
   for (const t of tracks) {
     if (state.tracks[t.id]) throw new Error(`Duplicate track id ${t.id}`)
-    if (!Number.isInteger(t.startStep) || t.startStep < 0) throw new Error(`Invalid startStep on ${t.id}`)
     if (t.bpms.length === 0) throw new Error(`Track ${t.id} has no points`)
     if (!t.bpms.every(Number.isFinite)) throw new Error(`Non-finite BPM on ${t.id}`)
     const nodes = t.nodes ?? deriveNodes(t.bpms)

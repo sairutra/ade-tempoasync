@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Track } from '../model/types'
 import { TrackHeader } from './TrackHeader'
 
-const track: Track = { id: 'a', name: 'Lead', startStep: 0, bpms: [120], nodes: [0], sourceOffset: 0, color: '#123456' }
+const track: Track = { id: 'a', name: 'Lead', bpms: [120], nodes: [0], sourceOffset: 0, color: '#123456' }
 
 describe('TrackHeader', () => {
   it('shows a swatch driven by the same --tl-line-color the track line uses', () => {

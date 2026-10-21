@@ -11,7 +11,7 @@ type Props = {
   usedColors: readonly string[]
   /** Prefilled BPM (the project BPM). */
   defaultBpm: number
-  onSubmit: (channel: Omit<NewTrackInput, 'startStep'>) => void
+  onSubmit: (channel: NewTrackInput) => void
   onClose: () => void
 }
 

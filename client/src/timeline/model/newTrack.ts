@@ -13,8 +13,6 @@ export type NewTrackInput = {
   color: string
   /** Initial (flat) BPM of the line. */
   bpm: number
-  /** Step of the first point; defaults to 0. */
-  startStep?: number
 }
 
 /** Colours already in use by tracks of `state`. */
@@ -31,7 +29,7 @@ function uniqueId(state: TimelineState, name: string): string {
 }
 
 /**
- * Builds a flat line at `bpm` from `startStep` to the current content end (at least
+ * Builds a flat line at `bpm` from step 0 to the current content end (at least
  * NEW_TRACK_MIN_STEPS long), with nodes at both ends so it can be bent right away.
  * Throws on input createTimelineState would reject, so callers validate first.
  */
@@ -39,15 +37,12 @@ export function buildNewTrack(state: TimelineState, input: NewTrackInput): Track
   const name = input.name.trim()
   if (!name) throw new Error('Track name is required')
   if (!(input.bpm > 0) || !Number.isFinite(input.bpm)) throw new Error(`Invalid BPM ${input.bpm}`)
-  const startStep = input.startStep ?? 0
-  if (!Number.isInteger(startStep) || startStep < 0) throw new Error(`Invalid startStep ${startStep}`)
 
-  const length = Math.max(NEW_TRACK_MIN_STEPS, getContentEndStep(state) - startStep + 1)
+  const length = Math.max(NEW_TRACK_MIN_STEPS, getContentEndStep(state) + 1)
   const bpm = roundBpm(input.bpm)
   return {
     id: uniqueId(state, name),
     name,
-    startStep,
     bpms: Array.from({ length }, () => bpm),
     nodes: [0, length - 1],
     sourceOffset: 0,

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import { usedColors } from '../model/newTrack'
 import { getOrderedTracks } from '../model/selectors'
-import { stepToTime, timeToStep } from '../model/tempo'
+import { timeToStep } from '../model/tempo'
 import { useModelActions, useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
-import { contentWidth, visibleTimeRange, xToTime } from '../viewport/viewport'
+import { contentWidth, xToTime } from '../viewport/viewport'
 import { AddChannelDialog } from './AddChannelDialog'
 import { GridCanvas } from './GridCanvas'
 import { Playhead } from './Playhead'
@@ -15,8 +15,6 @@ import { TransportBar } from './TransportBar'
 import { useWheelZoomScroll } from './useWheelZoomScroll'
 import './Timeline.css'
 
-/** Lines this far outside the view stay mounted, so small scrolls don't churn the DOM. */
-const OVERSCAN_PX = 200
 const ZOOM_STEP = 1.5
 
 export function Timeline() {
@@ -61,10 +59,9 @@ export function Timeline() {
   }
 
   const tracks = getOrderedTracks(model)
-  const [, visibleEnd] = visibleTimeRange(viewport, bounds.viewWidth, OVERSCAN_PX)
   const zoomCentered = (factor: number) => actions.zoomAt(factor, bounds.viewWidth / 2)
   const width = contentWidth(viewport.pxPerSecond, bounds)
-  // Every line holds its last BPM to the content end, so only its start can be off-screen (right).
+  // Every line runs from step 0 to the timeline end (holding its last BPM), so it's always on screen.
   const contentEndStep = timeToStep(bounds.duration, model.projectBpm)
 
   return (
@@ -116,8 +113,7 @@ export function Timeline() {
                 style={{ width: Math.max(width, bounds.viewWidth), transform: `translateX(${-viewport.scrollX}px)` }}
               >
                 <div className="tl-lines">
-                  {tracks.map((track) =>
-                    stepToTime(track.startStep, model.projectBpm) > visibleEnd ? null : (
+                  {tracks.map((track) => (
                       <TrackLine
                         key={track.id}
                         track={track}
@@ -132,8 +128,7 @@ export function Timeline() {
                         onMoveNode={modelActions.moveNode}
                         onShiftLine={modelActions.shiftLine}
                       />
-                    ),
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
@@ -155,8 +150,8 @@ export function Timeline() {
         defaultBpm={model.projectBpm}
         onClose={() => setAddingChannel(false)}
         onSubmit={(channel) => {
-          // The new line starts at the playhead (snapped to the step grid).
-          modelActions.addTrack({ ...channel, startStep: Math.max(0, Math.round(clock.getPosition())) })
+          // Like every line, the new one spans the whole timeline from step 0.
+          modelActions.addTrack(channel)
           setAddingChannel(false)
         }}
       />

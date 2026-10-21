@@ -2,10 +2,10 @@
  * Horizontal positions are integer steps (1 step = one 16th note at `projectBpm`, see tempo.ts);
  * vertical positions are BPM. Pixels never appear in the model.
  *
- * A track is a BPM curve with exactly one point per step and no gaps: point i sits at step
- * `startStep + i` with BPM `bpms[i]`. Storing a start plus a dense array (rather than x per point)
- * makes "two points on one step" and "a gap" unrepresentable. Nothing is drawn before
- * `startStep`; after the last point the line holds the last BPM to the end of the content.
+ * A track is a BPM curve with exactly one point per step and no gaps: point i sits at step i with
+ * BPM `bpms[i]`. Every line starts at step 0 and, after its last point, holds the last BPM to the
+ * end of the timeline. Storing a dense array from step 0 (rather than x per point, or a start
+ * offset) makes "two points on one step", "a gap" and "a line that starts late" unrepresentable.
  *
  * `nodes` are the editing nodes: indices into `bpms` where the line may bend. Between two
  * consecutive nodes the points lie on the straight line joining them (see model/nodes.ts), so the
@@ -14,9 +14,7 @@
 export type Track = {
   id: string
   name: string
-  /** Step of the first point (integer). */
-  startStep: number
-  /** bpms[i] is the BPM at step startStep + i. Never empty. Not clamped: see bpmMin/bpmMax. */
+  /** bpms[i] is the BPM at step i. Never empty. Not clamped: see bpmMin/bpmMax. */
   bpms: number[]
   /**
    * Indices into `bpms`, strictly increasing, always containing 0 and bpms.length - 1.

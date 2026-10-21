@@ -2,10 +2,7 @@ import { buildNewTrack, type NewTrackInput } from './newTrack'
 import { addNode, moveNode, removeNode, setNodeBpm, shiftBpms } from './nodes'
 import type { TimelineState, Track } from './types'
 
-/**
- * Node indices are offsets from the track's startStep (indices into its bpms). moveNode is the
- * exception: it uses absolute steps, because moving the first node changes startStep mid-drag.
- */
+/** Every line starts at step 0, so node indices (into bpms) and steps are the same numbers. */
 export type ModelAction = LineAction | TrackAction
 
 /** Adds a track; its colour is made distinct from the existing tracks' (see buildNewTrack). */
@@ -15,12 +12,12 @@ export type LineAction =
   | { type: 'addNode'; trackId: string; index: number }
   | { type: 'setNodeBpm'; trackId: string; index: number; bpm: number }
   | { type: 'removeNode'; trackId: string; index: number }
-  /** Moves the node at absolute step `fromStep` horizontally to `toStep`, clamped between its neighbours. */
+  /** Moves the node at step `fromStep` horizontally to `toStep`, clamped between its neighbours. */
   | { type: 'moveNode'; trackId: string; fromStep: number; toStep: number }
   /** Sets the track's points to `base` moved by `delta` BPM (base: the points when the drag began). */
   | { type: 'shiftLine'; trackId: string; base: readonly number[]; delta: number }
 
-type Line = Pick<Track, 'startStep' | 'bpms' | 'nodes'>
+type Line = Pick<Track, 'bpms' | 'nodes'>
 
 function apply(line: Line, action: LineAction): Line {
   switch (action.type) {
@@ -32,9 +29,8 @@ function apply(line: Line, action: LineAction): Line {
       return { ...line, ...removeNode(line, action.index) }
     case 'moveNode': {
       // A step that is no longer a node is stale (the line changed since the drag began): ignore it.
-      const index = action.fromStep - line.startStep
-      if (!line.nodes.includes(index)) return line
-      return moveNode(line, index, action.toStep)
+      if (!line.nodes.includes(action.fromStep)) return line
+      return moveNode(line, action.fromStep, action.toStep)
     }
     case 'shiftLine':
       // A base of another length is stale (the line changed since the drag began): ignore it.
@@ -54,8 +50,8 @@ export function modelReducer(state: TimelineState, action: ModelAction): Timelin
   }
   const track = state.tracks[action.trackId]
   if (!track) return state
-  const line = { startStep: track.startStep, bpms: track.bpms, nodes: track.nodes }
+  const line = { bpms: track.bpms, nodes: track.nodes }
   const next = apply(line, action)
-  if (next.startStep === line.startStep && next.bpms === line.bpms && next.nodes === line.nodes) return state
+  if (next.bpms === line.bpms && next.nodes === line.nodes) return state
   return { ...state, tracks: { ...state.tracks, [track.id]: { ...track, ...next } } }
 }

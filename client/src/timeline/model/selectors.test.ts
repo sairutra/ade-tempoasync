@@ -11,37 +11,31 @@ import {
 } from './selectors'
 import type { TrackInput } from './types'
 
-const t = (id: string, name: string, startStep: number, bpms: number[] = [120]): TrackInput => ({
+const t = (id: string, name: string, bpms: number[] = [120]): TrackInput => ({
   id,
   name,
-  startStep,
   bpms,
   sourceOffset: 0,
 })
 
 describe('getOrderedTracks', () => {
-  it('orders by start step', () => {
-    const state = createTimelineState([t('a', 'Z', 160), t('b', 'Y', 0), t('c', 'X', 80)])
-    expect(getOrderedTracks(state).map((x) => x.id)).toEqual(['b', 'c', 'a'])
-  })
-
-  it('ignores line length and BPM when ordering', () => {
-    const state = createTimelineState([t('long', 'A', 8, [200, 60, 90, 90, 90]), t('short', 'B', 4, [61])])
-    expect(getOrderedTracks(state).map((x) => x.id)).toEqual(['short', 'long'])
-  })
-
-  it('breaks start-step ties alphabetically by name', () => {
-    const state = createTimelineState([t('v', 'Vocals', 16), t('g', 'Guitar', 16), t('d', 'Drums', 0)])
+  it('orders alphabetically by name', () => {
+    const state = createTimelineState([t('v', 'Vocals'), t('g', 'Guitar'), t('d', 'Drums')])
     expect(getOrderedTracks(state).map((x) => x.name)).toEqual(['Drums', 'Guitar', 'Vocals'])
   })
 
-  it('falls back to id when start step and name are equal', () => {
-    const state = createTimelineState([t('b', 'Same', 3), t('a', 'Same', 3)])
+  it('ignores line length and BPM when ordering', () => {
+    const state = createTimelineState([t('long', 'B', [200, 60, 90, 90, 90]), t('short', 'A', [61])])
+    expect(getOrderedTracks(state).map((x) => x.id)).toEqual(['short', 'long'])
+  })
+
+  it('falls back to id when names are equal', () => {
+    const state = createTimelineState([t('b', 'Same'), t('a', 'Same')])
     expect(getOrderedTracks(state).map((x) => x.id)).toEqual(['a', 'b'])
   })
 
   it('does not depend on input order', () => {
-    const tracks = [t('a', 'Bass', 64), t('b', 'Keys', 64), t('c', 'Drums', 0)]
+    const tracks = [t('a', 'Bass'), t('b', 'Keys'), t('c', 'Drums')]
     const forward = getOrderedTracks(createTimelineState(tracks)).map((x) => x.id)
     const reversed = getOrderedTracks(createTimelineState([...tracks].reverse())).map((x) => x.id)
     expect(forward).toEqual(reversed)
@@ -50,7 +44,7 @@ describe('getOrderedTracks', () => {
 
 describe('createTimelineState', () => {
   it('keeps out-of-range BPMs unclamped in the model', () => {
-    const state = createTimelineState([t('a', 'A', 0, [10, 500])], { bpmMin: 60, bpmMax: 200 })
+    const state = createTimelineState([t('a', 'A', [10, 500])], { bpmMin: 60, bpmMax: 200 })
     expect(state.tracks.a.bpms).toEqual([10, 500])
   })
 
@@ -65,22 +59,20 @@ describe('createTimelineState', () => {
   })
 
   it('rejects malformed tracks', () => {
-    expect(() => createTimelineState([t('a', 'A', 0), t('a', 'B', 1)])).toThrow() // duplicate id
-    expect(() => createTimelineState([t('a', 'A', 0, [])])).toThrow() // no points
-    expect(() => createTimelineState([t('a', 'A', 1.5)])).toThrow() // fractional step
-    expect(() => createTimelineState([t('a', 'A', -1)])).toThrow()
-    expect(() => createTimelineState([t('a', 'A', 0, [120, NaN])])).toThrow()
+    expect(() => createTimelineState([t('a', 'A'), t('a', 'B')])).toThrow() // duplicate id
+    expect(() => createTimelineState([t('a', 'A', [])])).toThrow() // no points
+    expect(() => createTimelineState([t('a', 'A', [120, NaN])])).toThrow()
   })
 })
 
 describe('trackLastStep / getContentEndStep', () => {
-  it('last point is startStep + bpms.length - 1', () => {
-    expect(trackLastStep(t('a', 'A', 10, [120]))).toBe(10)
-    expect(trackLastStep(t('a', 'A', 10, [120, 130, 140]))).toBe(12)
+  it('last point is bpms.length - 1 (every line starts at step 0)', () => {
+    expect(trackLastStep(t('a', 'A', [120]))).toBe(0)
+    expect(trackLastStep(t('a', 'A', [120, 130, 140]))).toBe(2)
   })
 
-  it('is the furthest last point over all tracks, not the latest start', () => {
-    const state = createTimelineState([t('a', 'A', 0, Array(100).fill(120)), t('b', 'B', 50, [120, 120])])
+  it('is the furthest last point over all tracks', () => {
+    const state = createTimelineState([t('a', 'A', Array(100).fill(120)), t('b', 'B', [120, 120])])
     expect(getContentEndStep(state)).toBe(99)
   })
 
@@ -92,12 +84,12 @@ describe('trackLastStep / getContentEndStep', () => {
 describe('getTimelineDuration', () => {
   it('is stepToTime(furthest last point) plus padding', () => {
     // Last point at step 32 → 4 s at 120 BPM (0.125 s per 16th).
-    const state = createTimelineState([t('a', 'A', 0, Array(17).fill(100)), t('b', 'B', 30, [1, 2, 3])])
+    const state = createTimelineState([t('a', 'A', Array(33).fill(100)), t('b', 'B', [1, 2, 3])])
     expect(getTimelineDuration(state)).toBe(4 + END_PADDING_SECONDS)
   })
 
   it('uses the project tempo, not the track BPMs', () => {
-    const state = createTimelineState([t('a', 'A', 16, [200])], { projectBpm: 60 })
+    const state = createTimelineState([t('a', 'A', Array(17).fill(200))], { projectBpm: 60 })
     expect(getTimelineDuration(state)).toBe(4 + END_PADDING_SECONDS) // 16 sixteenths at 60 BPM
   })
 

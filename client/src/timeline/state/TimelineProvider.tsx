@@ -31,12 +31,12 @@ export type ViewportActions = {
   zoomToFit: () => void
 }
 
-/** Node indices are offsets from the track's startStep. Stable for the provider's lifetime. */
+/** Node indices (into bpms) are also steps: every line starts at step 0. Stable for the provider's lifetime. */
 export type ModelActions = {
   addNode: (trackId: string, index: number) => void
   setNodeBpm: (trackId: string, index: number, bpm: number) => void
   removeNode: (trackId: string, index: number) => void
-  /** Moves a node horizontally; steps are absolute (not offsets), clamped between its neighbours. */
+  /** Moves a node horizontally, clamped between its neighbours; the first node stays at step 0. */
   moveNode: (trackId: string, fromStep: number, toStep: number) => void
   /** Sets the track's points to `base` moved by `delta` BPM. */
   shiftLine: (trackId: string, base: readonly number[], delta: number) => void

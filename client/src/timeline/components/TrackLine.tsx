@@ -4,7 +4,6 @@ import { bpmToFraction, clampBpm } from '../model/selectors'
 import { stepToTime, timeToStep } from '../model/tempo'
 import { buildTrackPath, trackViewBox } from '../model/trackPath'
 import type { Track } from '../model/types'
-import { timeToContentX } from '../viewport/viewport'
 
 type Props = {
   track: Track
@@ -12,13 +11,13 @@ type Props = {
   projectBpm: number
   bpmMin: number
   bpmMax: number
-  /** Content end in steps; the line holds its last BPM until here. */
+  /** Timeline end in steps; the line holds its last BPM until here. */
   contentEndStep: number
-  /** Node indices are offsets from track.startStep. Both must be stable (they are memo deps). */
+  /** Node indices (into bpms) are also steps: lines start at step 0. Must be stable (memo deps). */
   onAddNode: (trackId: string, index: number) => void
   onSetNodeBpm: (trackId: string, index: number, bpm: number) => void
   onRemoveNode: (trackId: string, index: number) => void
-  /** Moves a node horizontally; steps are absolute (not offsets from startStep). Must be stable. */
+  /** Moves a node horizontally from step `fromStep` to `toStep`. Must be stable. */
   onMoveNode: (trackId: string, fromStep: number, toStep: number) => void
   /** Sets the track's points to `base` moved by `delta` BPM. */
   onShiftLine: (trackId: string, base: readonly number[], delta: number) => void
@@ -35,16 +34,15 @@ type Axis = 'x' | 'y'
 type Drag =
   /**
    * Dragging one node, either vertically (BPM) or horizontally (step) — never both in one drag.
-   * `step` is the node's current absolute step: a horizontal move changes its index, and moving the
-   * first node changes startStep, so the node is tracked by absolute step rather than by index.
+   * `step` is the node's current step: a horizontal move changes it, so it's tracked here.
    */
   | {
       kind: 'node'
       pointerId: number
       startX: number
       startY: number
-      /** Absolute step of the node when the drag began. */
-      startStep: number
+      /** Step of the node when the drag began. */
+      originStep: number
       step: number
       startBpm: number
       axis: Axis | null
@@ -54,7 +52,7 @@ type Drag =
   | { kind: 'line'; pointerId: number; startY: number; base: readonly number[] }
 
 /**
- * One SVG per track, spanning from its first point to the content end. The viewBox is in model
+ * One SVG per track, spanning the whole timeline: from step 0 to the timeline end. The viewBox is in model
  * units (steps × BPM) with preserveAspectRatio="none", so zooming only changes the svg's CSS width;
  * the path string is rebuilt only when the points, the BPM range or the content end change.
  * `vector-effect: non-scaling-stroke` keeps the stroke width constant under that stretch.
@@ -63,8 +61,8 @@ type Drag =
  * Editing: every node is a handle (HTML, so it stays round under the stretched viewBox). A drag
  * moves it either vertically (BPM) or horizontally (step), never both: the first few pixels of
  * movement pick the axis, which then holds until release. Horizontally a node stays strictly between
- * its neighbours; the first node can move back to step 0 (moving the line's start) and the last can
- * move forward freely (lengthening the line). Pressing anywhere else on the line — including the held part after the last point —
+ * its neighbours; the first node stays at step 0 (it only moves vertically, since every line starts
+ * there) and the last can move forward freely (lengthening the points). Pressing anywhere else on the line — including the held part after the last point —
  * adds a node at the nearest step and drags it in the same gesture. Right-clicking a node removes
  * it (the line between its neighbours becomes straight); the first and last nodes stay.
  * Ctrl+dragging the line or any node moves the whole line up or down, keeping its shape within the
@@ -83,18 +81,17 @@ export const TrackLine = memo(function TrackLine({
   onMoveNode,
   onShiftLine,
 }: Props) {
-  const { bpms, nodes, startStep } = track
-  const widthSteps = Math.max(bpms.length - 1, contentEndStep - startStep)
+  const { bpms, nodes } = track
+  const widthSteps = Math.max(bpms.length - 1, contentEndStep)
   const path = useMemo(() => buildTrackPath(bpms, bpmMin, bpmMax, widthSteps), [bpms, bpmMin, bpmMax, widthSteps])
 
   const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<Drag | null>(null)
-  /** Absolute step of the node being dragged, and the axis once the drag has picked one. */
+  /** Step of the node being dragged, and the axis once the drag has picked one. */
   const [dragStep, setDragStep] = useState<number | null>(null)
   const [dragAxis, setDragAxis] = useState<Axis | null>(null)
   const [shifting, setShifting] = useState(false)
 
-  const x = timeToContentX(stepToTime(startStep, projectBpm), pxPerSecond)
   const pxPerStep = stepToTime(1, projectBpm) * pxPerSecond
   const width = Math.max(1, widthSteps * pxPerStep)
   const color = { '--tl-line-color': track.color } as CSSProperties
@@ -104,19 +101,18 @@ export const TrackLine = memo(function TrackLine({
   const startDrag = (e: PointerEvent<Element>, index: number) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     // Out-of-range points are drawn clamped; dragging starts from where the handle is drawn.
-    const step = startStep + index
     dragRef.current = {
       kind: 'node',
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      startStep: step,
-      step,
+      originStep: index,
+      step: index,
       startBpm: clampBpm(bpmAt(index), bpmMin, bpmMax),
       axis: null,
       range: null,
     }
-    setDragStep(step)
+    setDragStep(index)
   }
 
   const startShift = (e: PointerEvent<Element>) => {
@@ -167,19 +163,20 @@ export const TrackLine = memo(function TrackLine({
       onShiftLine(track.id, drag.base, clampShift(drag.base, roundBpm(dBpm), bpmMin, bpmMax))
       return
     }
-    const index = drag.step - startStep
+    const index = drag.step
     if (drag.axis === null) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < AXIS_LOCK_PX) return
       // A node added by pressing the line may not have rendered yet: wait for it.
       if (!nodes.includes(index)) return
-      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      // The first node is pinned to step 0 (every line starts there), so it only moves vertically.
+      drag.axis = index !== 0 && Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
       // The neighbours never move during this drag, so the bounds are fixed for its whole length.
       if (drag.axis === 'x') drag.range = nodeMoveRange(track, index)
       setDragAxis(drag.axis)
     }
     if (drag.axis === 'x') {
       const { min, max } = drag.range!
-      const target = Math.min(max, Math.max(min, drag.startStep + Math.round(dx / pxPerStep)))
+      const target = Math.min(max, Math.max(min, drag.originStep + Math.round(dx / pxPerStep)))
       if (target === drag.step) return
       onMoveNode(track.id, drag.step, target)
       drag.step = target
@@ -207,7 +204,7 @@ export const TrackLine = memo(function TrackLine({
         className="tl-line"
         data-shifting={shifting || undefined}
         data-axis={dragAxis ?? undefined}
-        style={{ ...color, width, transform: `translateX(${x}px)` }}
+        style={{ ...color, width }}
         viewBox={trackViewBox(bpmMin, bpmMax, widthSteps)}
         preserveAspectRatio="none"
         aria-label={track.name}
@@ -225,11 +222,11 @@ export const TrackLine = memo(function TrackLine({
           <title>{`${track.name} — click to add a node, Ctrl+drag to move the line`}</title>
         </path>
       </svg>
-      <span className="tl-line-name" style={{ ...color, top: `${labelTop}%`, transform: `translate(${x}px, calc(-100% - 4px))` }}>
+      <span className="tl-line-name" style={{ ...color, top: `${labelTop}%`, transform: 'translateY(calc(-100% - 4px))' }}>
         {track.name}
       </span>
       {nodes.map((index, k) => {
-        const active = dragStep === startStep + index
+        const active = dragStep === index
         return (
           <span
             // Keyed by position, not step: a horizontal drag changes the node's step, and a new key
@@ -240,7 +237,7 @@ export const TrackLine = memo(function TrackLine({
             data-dense={pxPerStep < DENSE_PX_PER_STEP || undefined}
             data-active={active || undefined}
             data-axis={(active && dragAxis) || undefined}
-            style={{ ...color, left: x + index * pxPerStep, top: `${bpmToFraction(bpms[index], bpmMin, bpmMax) * 100}%` }}
+            style={{ ...color, left: index * pxPerStep, top: `${bpmToFraction(bpms[index], bpmMin, bpmMax) * 100}%` }}
             title={`${track.name}: ${formatBpm(bpms[index])} BPM${k > 0 && k < nodes.length - 1 ? ' — right-click to remove' : ''}`}
             onPointerDown={(e) => onNodePointerDown(e, index)}
             onContextMenu={(e) => onNodeContextMenu(e, index)}

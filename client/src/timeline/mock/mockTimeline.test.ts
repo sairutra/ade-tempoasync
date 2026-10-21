@@ -3,11 +3,14 @@ import { getOrderedTracks } from '../model/selectors'
 import { mockTimeline } from './mockTimeline'
 
 describe('mockTimeline', () => {
-  it('has exactly one start-step tie, resolved by name', () => {
-    const tracks = getOrderedTracks(mockTimeline)
-    expect(tracks.map((t) => t.name)).toEqual(['Drums', 'Bass', 'Keys', 'Vocals', 'Guitar'])
-    const starts = tracks.map((t) => t.startStep)
-    expect(starts.length - new Set(starts).size).toBe(1)
+  it('orders the headers by name', () => {
+    expect(getOrderedTracks(mockTimeline).map((t) => t.name)).toEqual(['Bass', 'Drums', 'Guitar', 'Keys', 'Vocals'])
+  })
+
+  it('keeps each part entering at its bar, holding the first BPM before it', () => {
+    const { keys, vox } = mockTimeline.tracks
+    expect(new Set(keys.bpms.slice(0, 4 * 16))).toEqual(new Set([90]))
+    expect(new Set(vox.bpms.slice(0, 8 * 16 + 1))).toEqual(new Set([80]))
   })
 
   it('has curves, not flat lines, and one that leaves the drawable range', () => {
