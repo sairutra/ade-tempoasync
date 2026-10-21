@@ -8,6 +8,8 @@ var app = require("../app");
 var debug = require("debug")("server:server");
 var http = require("http");
 var navigator = require("jzz");
+var { TimelineStore } = require("../sync/timelineStore");
+var { attachTimelineSocket } = require("../sync/wsServer");
 
 /**
  * Get port from environment and store in Express.
@@ -21,6 +23,14 @@ app.set("port", port);
  */
 
 var server = http.createServer(app);
+
+/**
+ * Timeline sync socket: the client streams track edits to /ws (see sync/).
+ */
+
+var timeline = new TimelineStore();
+app.set("timeline", timeline);
+attachTimelineSocket(server, { store: timeline, path: "/ws" });
 
 /**
  * Listen on provided port, on all network interfaces.
