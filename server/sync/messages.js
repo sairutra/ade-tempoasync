@@ -4,7 +4,7 @@
  *
  *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms }] }
  *   { type: 'addTrack', id, bpms }
- *   { type: 'patch', trackId, from, bpms, length? }   // replaces bpms[from .. from + bpms.length)
+ *   { type: 'patch', trackId, from, bpms, length? } // replaces bpms[from .. from + bpms.length), then sets the line to `length` steps
  *   { type: 'projectBpm', bpm }
  *
  * parseMessage() returns the validated message or throws a ProtocolError. It checks shape only;

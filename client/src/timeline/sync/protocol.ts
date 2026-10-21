@@ -8,8 +8,11 @@ import type { TimelineState } from '../model/types'
 export type ClientMessage =
   | { type: 'snapshot'; projectBpm: number; tracks: { id: string; bpms: number[] }[] }
   | { type: 'addTrack'; id: string; bpms: number[] }
-  /** Replaces the track's bpms[from .. from + bpms.length). */
-  | { type: 'patch'; trackId: string; from: number; bpms: number[] }
+  /**
+   * Replaces the track's bpms[from .. from + bpms.length), then sets the line to `length` steps
+   * (cutting the end when the line got shorter, e.g. the last node moved back).
+   */
+  | { type: 'patch'; trackId: string; from: number; bpms: number[]; length: number }
   | { type: 'projectBpm'; bpm: number }
 
 export function snapshotMessage(state: TimelineState): ClientMessage {

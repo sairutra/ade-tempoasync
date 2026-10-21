@@ -101,7 +101,8 @@ export class TimelineSocket {
     for (const [trackId, { bpms, from, to }] of this.pending) {
       // An earlier patch in the union may have covered a longer line than the latest one.
       const end = Math.min(to, bpms.length)
-      if (end > from) this.send({ type: 'patch', trackId, from, bpms: bpms.slice(from, end) })
+      // `length` lets the server drop steps past the end when the line got shorter.
+      if (end > from) this.send({ type: 'patch', trackId, from, bpms: bpms.slice(from, end), length: bpms.length })
     }
     this.pending.clear()
   }

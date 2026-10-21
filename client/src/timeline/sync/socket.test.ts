@@ -38,7 +38,7 @@ describe('TimelineSocket patches', () => {
     socket.queuePatch('a', [0, 10, 20, 30, 40, 50, 60, 70], { from: 5, to: 6 })
     expect(ws.sent).toEqual([])
     vi.advanceTimersByTime(30)
-    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 1, bpms: [10, 20, 30, 40, 50] }])
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 1, bpms: [10, 20, 30, 40, 50], length: 8 }])
   })
 
   it('flushes each track separately, and only once per batch', () => {
@@ -48,8 +48,8 @@ describe('TimelineSocket patches', () => {
     vi.advanceTimersByTime(30)
     vi.advanceTimersByTime(100)
     expect(ws.sent).toEqual([
-      { type: 'patch', trackId: 'a', from: 0, bpms: [1] },
-      { type: 'patch', trackId: 'b', from: 1, bpms: [4] },
+      { type: 'patch', trackId: 'a', from: 0, bpms: [1], length: 2 },
+      { type: 'patch', trackId: 'b', from: 1, bpms: [4], length: 2 },
     ])
   })
 
@@ -58,7 +58,7 @@ describe('TimelineSocket patches', () => {
     socket.queuePatch('a', [1, 2, 3, 4, 5], { from: 0, to: 5 })
     socket.queuePatch('a', [1, 2, 9], { from: 0, to: 3 })
     socket.flush()
-    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 0, bpms: [1, 2, 9] }])
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 0, bpms: [1, 2, 9], length: 3 }])
   })
 })
 

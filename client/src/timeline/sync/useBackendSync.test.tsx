@@ -74,13 +74,19 @@ describe('useBackendSync', () => {
     const ws = mount()
     edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 120 })
     // nodes 2 and 6 stay at 100; steps 3..5 are redrawn
-    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 3, bpms: [110, 120, 110] }])
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 3, bpms: [110, 120, 110], length: 9 }])
   })
 
   it('shiftLine sends a full-range patch', () => {
     const ws = mount()
     edit({ type: 'shiftLine', trackId: 'a', base: initial.tracks.a.bpms, delta: 5 })
-    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 0, bpms: flat(9, 105) }])
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 0, bpms: flat(9, 105), length: 9 }])
+  })
+
+  it('moving the last node back sends the shorter length, so the server drops the old end', () => {
+    const ws = mount()
+    edit({ type: 'moveNode', trackId: 'a', fromStep: 8, toStep: 7 })
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 0, bpms: flat(8, 100), length: 8 }])
   })
 
   it('an edit on one track sends nothing for the others', () => {
@@ -97,7 +103,7 @@ describe('useBackendSync', () => {
     })
     act(() => dispatch({ type: 'setNodeBpm', trackId: 'a', index: 6, bpm: 104 }))
     vi.advanceTimersByTime(30)
-    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 1, bpms: [105, 110, 105, 100, 102, 104, 102] }])
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 1, bpms: [105, 110, 105, 100, 102, 104, 102], length: 9 }])
   })
 
   it('sends nothing for edits that leave bpms untouched (adding a node, the BPM range)', () => {
