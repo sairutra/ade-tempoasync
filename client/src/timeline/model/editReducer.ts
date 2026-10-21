@@ -1,3 +1,4 @@
+import { buildNewTrack, type NewTrackInput } from './newTrack'
 import { addNode, moveNode, removeNode, setNodeBpm, shiftBpms } from './nodes'
 import type { TimelineState, Track } from './types'
 
@@ -5,7 +6,12 @@ import type { TimelineState, Track } from './types'
  * Node indices are offsets from the track's startStep (indices into its bpms). moveNode is the
  * exception: it uses absolute steps, because moving the first node changes startStep mid-drag.
  */
-export type ModelAction =
+export type ModelAction = LineAction | TrackAction
+
+/** Adds a track; its colour is made distinct from the existing tracks' (see buildNewTrack). */
+export type TrackAction = { type: 'addTrack'; track: NewTrackInput }
+
+export type LineAction =
   | { type: 'addNode'; trackId: string; index: number }
   | { type: 'setNodeBpm'; trackId: string; index: number; bpm: number }
   | { type: 'removeNode'; trackId: string; index: number }
@@ -16,7 +22,7 @@ export type ModelAction =
 
 type Line = Pick<Track, 'startStep' | 'bpms' | 'nodes'>
 
-function apply(line: Line, action: ModelAction): Line {
+function apply(line: Line, action: LineAction): Line {
   switch (action.type) {
     case 'addNode':
       return { ...line, ...addNode(line, action.index) }
@@ -42,6 +48,10 @@ function apply(line: Line, action: ModelAction): Line {
  * tracks don't re-render while a node is dragged.
  */
 export function modelReducer(state: TimelineState, action: ModelAction): TimelineState {
+  if (action.type === 'addTrack') {
+    const track = buildNewTrack(state, action.track)
+    return { ...state, tracks: { ...state.tracks, [track.id]: track } }
+  }
   const track = state.tracks[action.trackId]
   if (!track) return state
   const line = { startStep: track.startStep, bpms: track.bpms, nodes: track.nodes }

@@ -1,8 +1,10 @@
-import { useEffect, useRef, type CSSProperties, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { usedColors } from '../model/newTrack'
 import { getOrderedTracks } from '../model/selectors'
 import { stepToTime, timeToStep } from '../model/tempo'
 import { useModelActions, useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
 import { contentWidth, visibleTimeRange, xToTime } from '../viewport/viewport'
+import { AddChannelDialog } from './AddChannelDialog'
 import { GridCanvas } from './GridCanvas'
 import { Playhead } from './Playhead'
 import { Ruler } from './Ruler'
@@ -26,6 +28,8 @@ export function Timeline() {
   const rootRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const lanesRef = useRef<HTMLDivElement>(null)
+  const [addingChannel, setAddingChannel] = useState(false)
+  const colorsInUse = useMemo(() => usedColors(model), [model])
 
   // The lane area's width is the viewport width; it drives clamping and zoom-to-fit.
   useEffect(() => {
@@ -42,7 +46,7 @@ export function Timeline() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
       const target = e.target as HTMLElement | null
-      if (target?.closest('button, input, textarea, select, [contenteditable="true"]')) return
+      if (target?.closest('button, input, textarea, select, dialog, [contenteditable="true"]')) return
       e.preventDefault()
       clock.toggle()
     }
@@ -71,6 +75,16 @@ export function Timeline() {
           <button type="button" onClick={() => zoomCentered(1 / ZOOM_STEP)} aria-label="Zoom out">−</button>
           <button type="button" onClick={() => zoomCentered(ZOOM_STEP)} aria-label="Zoom in">+</button>
           <button type="button" onClick={actions.zoomToFit}>Fit</button>
+          <button
+            type="button"
+            className="tl-toolbar-add"
+            onClick={() => setAddingChannel(true)}
+            title="Add channel"
+            aria-label="Add channel"
+            aria-haspopup="dialog"
+          >
+            + Add
+          </button>
         </div>
         <div
           className="tl-ruler-wrap"
@@ -134,6 +148,18 @@ export function Timeline() {
         />
         <Playhead viewport={viewport} viewWidth={bounds.viewWidth} bpm={model.projectBpm} scrollTo={actions.scrollTo} />
       </div>
+      {/* Outside .tl, so the wheel zoom/scroll handler doesn't see events from the dialog. */}
+      <AddChannelDialog
+        open={addingChannel}
+        usedColors={colorsInUse}
+        defaultBpm={model.projectBpm}
+        onClose={() => setAddingChannel(false)}
+        onSubmit={(channel) => {
+          // The new line starts at the playhead (snapped to the step grid).
+          modelActions.addTrack({ ...channel, startStep: Math.max(0, Math.round(clock.getPosition())) })
+          setAddingChannel(false)
+        }}
+      />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { modelReducer } from '../model/editReducer'
+import type { NewTrackInput } from '../model/newTrack'
 import { getTimelineDuration } from '../model/selectors'
 import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
@@ -39,6 +40,8 @@ export type ModelActions = {
   moveNode: (trackId: string, fromStep: number, toStep: number) => void
   /** Sets the track's points to `base` moved by `delta` BPM. */
   shiftLine: (trackId: string, base: readonly number[], delta: number) => void
+  /** Adds a flat line; a colour already in use is shifted to a distinct shade. */
+  addTrack: (track: NewTrackInput) => void
 }
 
 type ViewportContextValue = ViewportState & { actions: ViewportActions }
@@ -58,6 +61,7 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
       removeNode: (trackId, index) => modelDispatch({ type: 'removeNode', trackId, index }),
       moveNode: (trackId, fromStep, toStep) => modelDispatch({ type: 'moveNode', trackId, fromStep, toStep }),
       shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
+      addTrack: (track) => modelDispatch({ type: 'addTrack', track }),
     }),
     [],
   )
