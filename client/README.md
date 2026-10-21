@@ -37,9 +37,12 @@ src/timeline/
   viewport/   viewport.ts              – the one time↔px transform + scroll/zoom math (pure)
               ticks.ts                 – bar/beat/16th tick intervals and labels (pure)
               viewportReducer.ts       – scroll/zoom state transitions (pure)
-  state/      TimelineProvider.tsx     – React wiring: model context + viewport context
-  components/ Timeline, Ruler, GridCanvas, TrackHeader, TrackLine, Scrollbar,
-              useCanvas, useWheelZoomScroll
+  playback/   transport.ts             – transport state + position at the project BPM (pure)
+              transportClock.ts        – non-React clock: rAF loop, play/pause/stop/seek, listeners
+              format.ts                – bar.beat.16th and m:ss.mmm readouts
+  state/      TimelineProvider.tsx     – React wiring: model, viewport and transport-clock contexts
+  components/ Timeline, Ruler, GridCanvas, TrackHeader, TrackLine, Scrollbar, TransportBar,
+              Playhead, useCanvas, useWheelZoomScroll
   mock/       mockTimeline.ts          – 5 BPM curves over ~30 bars at 120 BPM, one start-step tie
 ```
 
@@ -113,6 +116,26 @@ contexts, so header components don't re-render on scroll or zoom.
 **Store-ready.** `viewportReducer` and the model selectors are plain TS. To move to Zustand, wrap
 them in a store and change the bodies of `useTimelineModel` / `useViewport`. Components stay as they are.
 
+**Playback.** The playhead advances at the project BPM: 4 steps per beat, so
+`projectBpm × 4 / 60` steps per second (8 at 120 BPM). Its position is stored in steps, and while
+playing it is derived from an anchor rather than accumulated per frame, so it doesn't drift:
+
+```ts
+step(now) = anchorStep + timeToStep((now - anchorTimeMs) / 1000, projectBpm)
+```
+
+`TransportClock` (plain TS) owns that state and runs one `requestAnimationFrame` loop while
+playing. `Playhead` and the transport readout subscribe with `clock.onFrame` and write their DOM
+directly, so playback never re-renders React; `useIsPlaying` re-renders only on play/pause.
+If the BPM changes mid-play, the clock re-anchors at the current step (`rebase`), so the playhead
+keeps its musical position and continues at the new speed.
+
+- Play/pause button or Space; Stop returns the playhead to 1.1.1
+- Click or drag on the ruler to move the playhead (snapped to 16ths); works while playing
+- Playback pauses at the end of the timeline; Play from there restarts at 0
+- While playing, the view pages forward when the playhead crosses its right edge. Only a crossing
+  triggers this, so you can scroll elsewhere during playback without being pulled back
+
 ## Where milestones 3+ plug in
 
 - **Point editing with undo.** Add a model reducer next to `viewportReducer`. Point edits map
@@ -124,10 +147,10 @@ them in a store and change the bodies of `useTimelineModel` / `useViewport`. Com
   Keep an undo stack of model snapshots or inverse actions in the provider, replacing the
   read-only `useState(initialState)`. The scroll clamp already re-runs when the duration changes
   (`setDuration`).
-- **Audio engine + playhead.** Keep a non-React engine module (Web Audio) that owns the transport
-  clock. Draw the playhead as its own absolutely positioned element or canvas, updated
-  imperatively in a `requestAnimationFrame` loop via `timeToX(engine.currentTime, viewport)`, so
-  playback never re-renders React. Tracks provide `startStep` (via `stepToTime`) and `sourceOffset` for scheduling.
+- **Audio engine.** The playhead and transport are in place (see Playback). For sound, drive
+  `TransportClock` from `AudioContext.currentTime` instead of `performance.now()` (it takes its
+  clock as a dependency), and schedule sources ahead from the anchor. Tracks provide `startStep`
+  (via `stepToTime`) and `sourceOffset` for scheduling.
 - **Waveforms.** Compute min/max peaks per source file in a Web Worker at a few zoom resolutions.
   Render along `TrackLine` on a canvas that draws only the visible slice, picking the peak level from
   `pxPerSecond` and offsetting by `sourceOffset`.
