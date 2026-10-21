@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
-import { getOrderedTracks, trackEnd } from '../model/selectors'
+import { getOrderedTracks } from '../model/selectors'
+import { stepToTime, timeToStep } from '../model/tempo'
 import { useTimelineModel, useViewport } from '../state/TimelineProvider'
 import { contentWidth, visibleTimeRange } from '../viewport/viewport'
 import { GridCanvas } from './GridCanvas'
@@ -33,9 +34,11 @@ export function Timeline() {
   useWheelZoomScroll(rootRef, lanesRef, bodyRef, actions)
 
   const tracks = getOrderedTracks(model)
-  const [visibleStart, visibleEnd] = visibleTimeRange(viewport, bounds.viewWidth, OVERSCAN_PX)
+  const [, visibleEnd] = visibleTimeRange(viewport, bounds.viewWidth, OVERSCAN_PX)
   const zoomCentered = (factor: number) => actions.zoomAt(factor, bounds.viewWidth / 2)
   const width = contentWidth(viewport.pxPerSecond, bounds)
+  // Every line holds its last BPM to the content end, so only its start can be off-screen (right).
+  const contentEndStep = timeToStep(bounds.duration, model.projectBpm)
 
   return (
     <div ref={rootRef} className="tl" style={{ '--tl-track-count': tracks.length } as CSSProperties}>
@@ -62,8 +65,16 @@ export function Timeline() {
             >
               <div className="tl-lines">
                 {tracks.map((track) =>
-                  track.start > visibleEnd || trackEnd(track) < visibleStart ? null : (
-                    <TrackLine key={track.id} track={track} pxPerSecond={viewport.pxPerSecond} />
+                  stepToTime(track.startStep, model.projectBpm) > visibleEnd ? null : (
+                    <TrackLine
+                      key={track.id}
+                      track={track}
+                      pxPerSecond={viewport.pxPerSecond}
+                      projectBpm={model.projectBpm}
+                      bpmMin={model.bpmMin}
+                      bpmMax={model.bpmMax}
+                      contentEndStep={contentEndStep}
+                    />
                   ),
                 )}
               </div>

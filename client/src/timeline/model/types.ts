@@ -1,25 +1,33 @@
 /**
- * All times are in seconds; vertical position is a 0–1 fraction of the lane area.
- * Pixels never appear in the model.
+ * Horizontal positions are integer steps (1 step = one 16th note at `projectBpm`, see tempo.ts);
+ * vertical positions are BPM. Pixels never appear in the model.
  *
- * A track is a single line: it starts at `start`, runs for `duration`, and sits at `y`.
+ * A track is a BPM curve with exactly one point per step and no gaps: point i sits at step
+ * `startStep + i` with BPM `bpms[i]`. Storing a start plus a dense array (rather than x per point)
+ * makes "two points on one step" and "a gap" unrepresentable. Nothing is drawn before
+ * `startStep`; after the last point the line holds the last BPM to the end of the content.
  */
 export type Track = {
   id: string
   name: string
-  /** Timeline position of the line's left edge. */
-  start: number
-  duration: number
-  /** Offset into the source audio where playback starts. */
+  /** Step of the first point (integer). */
+  startStep: number
+  /** bpms[i] is the BPM at step startStep + i. Never empty. Not clamped: see bpmMin/bpmMax. */
+  bpms: number[]
+  /** Offset into the source audio where playback starts, in seconds. */
   sourceOffset: number
-  /** Vertical position inside the lane area: 0 = top, 1 = bottom. */
-  y: number
   color?: string
 }
 
 /** Tracks by id. Display order is derived (see getOrderedTracks), not stored. */
 export type TimelineState = {
   tracks: Record<string, Track>
-  /** Project tempo in beats per minute; the ruler and grid derive bars/beats/16ths from it. */
+  /** Project tempo in beats per minute: defines the step grid (step <-> seconds) and the ruler. */
   projectBpm: number
+  /**
+   * Visible BPM range of the lane area (bpmMin < bpmMax); higher BPM is drawn higher.
+   * Points outside it are stored as-is and clamped only when drawn.
+   */
+  bpmMin: number
+  bpmMax: number
 }

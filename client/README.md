@@ -11,25 +11,40 @@ npm run build   # tsc -b && vite build
 
 ## Timeline architecture
 
-**Tracks are lines.** Each track is a single line with `start`, `duration` and a vertical
-position `y` (0 = top, 1 = bottom of the lane area). There are no per-track lane rows: lines can
-sit anywhere inside `.tl-lanes`. The header column is ordered by line start time, with ties broken
-alphabetically by name (`compareTracks` in `selectors.ts`), so header order is derived, not stored.
+**Tracks are BPM curves.** x is an integer step (one 16th note at `projectBpm`), y is BPM.
+Each track has exactly one point per step, with no gaps and never two points on one step. That is
+stored as a start plus a dense array, so the invariant can't be broken by construction:
+
+```ts
+type Track = { id; name; startStep: number; bpms: number[]; sourceOffset; color? }
+// bpms[i] is the BPM at step startStep + i; bpms.length >= 1
+```
+
+Points are joined by straight segments. Nothing is drawn before `startStep`; after the last point
+the line holds the last BPM to the right edge of the content. There are no per-track lane rows:
+every line shares the lane area's BPM axis, `TimelineState.bpmMin`–`bpmMax` (mock: 60–200), with
+higher BPM drawn higher. Out-of-range values stay in the model as-is and are clamped only when
+drawn (`clampBpm`). The header column is ordered by `startStep`, then name, then id
+(`compareTracks` in `selectors.ts`), so header order is derived, not stored.
+
+The timeline duration is `stepToTime(furthest last point over all tracks) + 2 s` of padding.
 
 ```
 src/timeline/
-  model/      types.ts, selectors.ts   – plain TS: Track (one line per track), TimelineState
+  model/      types.ts, selectors.ts   – plain TS: Track (a BPM curve), TimelineState, ordering, duration
               tempo.ts                 – the one step↔seconds conversion (stepToTime / timeToStep)
+              trackPath.ts             – SVG path + viewBox for a track, in model units (pure)
   viewport/   viewport.ts              – the one time↔px transform + scroll/zoom math (pure)
               ticks.ts                 – bar/beat/16th tick intervals and labels (pure)
               viewportReducer.ts       – scroll/zoom state transitions (pure)
   state/      TimelineProvider.tsx     – React wiring: model context + viewport context
   components/ Timeline, Ruler, GridCanvas, TrackHeader, TrackLine, Scrollbar,
               useCanvas, useWheelZoomScroll
-  mock/       mockTimeline.ts          – 5 tracks over ~60s at 120 BPM, with two start-time ties
+  mock/       mockTimeline.ts          – 5 BPM curves over ~30 bars at 120 BPM, one start-step tie
 ```
 
-**Time, not pixels.** The model stores seconds only. Pixels come from one transform:
+**Steps and BPM, not pixels.** The model stores steps and BPM; the viewport works in seconds
+(steps convert through `stepToTime`). Pixels come from one transform:
 
 ```ts
 type Viewport = { pxPerSecond: number; scrollX: number }
@@ -38,9 +53,16 @@ xToTime(x, v) = (x + v.scrollX) / v.pxPerSecond
 ```
 
 For performance, lines apply the two halves separately: each line is placed at
-`timeToContentX(start, pxPerSecond)` and the lane content layer is translated by `-scrollX`.
-The result is exactly `timeToX`, but scrolling only changes one transform, and memoized
-`TrackLine`s re-render only when zoom changes.
+`timeToContentX(stepToTime(startStep, bpm), pxPerSecond)` and the lane content layer is translated
+by `-scrollX`. The result is exactly `timeToX`, but scrolling only changes one transform, and
+memoized `TrackLine`s re-render only when zoom changes.
+
+**One SVG per track.** `TrackLine` renders an `<svg>` from the track's first point to the content
+end. Its viewBox is in model units — x in steps since `startStep`, y = `bpmMax - bpm`, height
+`bpmMax - bpmMin` — with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"` on
+the path. Zooming only changes the svg's CSS width; the path (`M` first point, `L` through each
+point, `H` to the content end) is rebuilt only when `bpms`, the BPM range or the content end
+change. The name label sits just above the first point.
 
 **Musical time on the ruler.** `TimelineState.projectBpm` (mock: 120) drives the ruler and grid.
 The model and viewport stay in seconds; only the ticks are musical. Time signature is fixed 4/4:
@@ -83,7 +105,8 @@ The view zooms to fit on first measure.
 `ResizeObserver` and DPR changes, and draws 1-device-pixel lines with `fillRect` at rounded device
 coordinates. Colors come from CSS custom properties in `Timeline.css`.
 
-**Rendering cost.** Lines outside the visible range (plus 200px overscan) aren't rendered.
+**Rendering cost.** Lines that start right of the visible range (plus 200px overscan) aren't
+rendered. Every line runs to the content end, so none can be entirely to the left.
 `TrackHeader` and `TrackLine` are memoized. The model and viewport live in separate
 contexts, so header components don't re-render on scroll or zoom.
 
@@ -92,16 +115,19 @@ them in a store and change the bodies of `useTimelineModel` / `useViewport`. Com
 
 ## Where milestones 3+ plug in
 
-- **Drag/trim with undo.** Add a model reducer next to `viewportReducer` (`moveTrack` for x and y, `trimStart`
-  adjusting `start` + `sourceOffset`, `trimEnd`). Keep an undo stack of model snapshots or inverse
-  actions in the provider, replacing the read-only `useState(initialState)`. Pointer handlers go
-  in `TrackLine`, converting pointer x with `xToTime`. Snapping can round to the visible
-  grid interval in steps (`pickTickScale`) via `timeToStep` / `stepToTime`.
-  The clamp already re-runs when the duration changes (`setDuration`).
+- **Point editing with undo.** Add a model reducer next to `viewportReducer`. Point edits map
+  directly onto the storage: set `bpms[step - startStep]`, extend/trim by pushing or slicing the
+  array (shifting `startStep` when trimming the front), move a whole track by changing
+  `startStep`. Every edit returns a new `bpms` array, which is what invalidates the memoized path.
+  Pointer x → step is `Math.round(timeToStep(xToTime(x, v), bpm))`; pointer y → BPM is
+  `bpmMax - fraction * (bpmMax - bpmMin)`. The path already accepts pointer events on its stroke.
+  Keep an undo stack of model snapshots or inverse actions in the provider, replacing the
+  read-only `useState(initialState)`. The scroll clamp already re-runs when the duration changes
+  (`setDuration`).
 - **Audio engine + playhead.** Keep a non-React engine module (Web Audio) that owns the transport
   clock. Draw the playhead as its own absolutely positioned element or canvas, updated
   imperatively in a `requestAnimationFrame` loop via `timeToX(engine.currentTime, viewport)`, so
-  playback never re-renders React. Tracks provide `start`/`duration`/`sourceOffset` for scheduling.
+  playback never re-renders React. Tracks provide `startStep` (via `stepToTime`) and `sourceOffset` for scheduling.
 - **Waveforms.** Compute min/max peaks per source file in a Web Worker at a few zoom resolutions.
   Render along `TrackLine` on a canvas that draws only the visible slice, picking the peak level from
   `pxPerSecond` and offsetting by `sourceOffset`.

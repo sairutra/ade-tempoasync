@@ -131,23 +131,34 @@
   will-change: transform;
 }
 
-/* Lines can sit anywhere in here; insets keep y = 0 / y = 1 (and their labels) visible. */
+/* Lines span bpmMax (top) to bpmMin (bottom) in here; insets keep the extremes (and labels) visible. */
 .tl-lines {
   position: absolute;
   inset: 22px 0 10px;
 }
 
+/* One svg per track; it spans the full lane height and stretches its model-unit viewBox. */
 .tl-line {
   position: absolute;
+  top: 0;
   left: 0;
-  height: 4px;
-  border-radius: 2px;
-  background-color: var(--tl-line-color, var(--tl-line-default));
+  height: 100%;
+  overflow: visible; /* clamped points sit exactly on the edges; don't clip half the stroke */
+  pointer-events: none;
 }
 
+.tl-line path {
+  fill: none;
+  stroke: var(--tl-line-color, var(--tl-line-default));
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: stroke;
+}
+
+/* Sits just above the first point. */
 .tl-line-name {
   position: absolute;
-  bottom: 6px;
   left: 0;
   max-width: 200px;
   overflow: hidden;
@@ -155,6 +166,7 @@
   white-space: nowrap;
   font-weight: 600;
   color: var(--tl-line-color, var(--tl-line-default));
+  pointer-events: none;
 }
 
 .tl-scrollbar-spacer {

@@ -24,3 +24,12 @@ describe('stepToTime / timeToStep', () => {
     }
   })
 })
+
+describe('stepToTime at the project tempo', () => {
+  it('maps integer steps to evenly spaced 16th notes', () => {
+    const bpm = 120
+    for (let step = 1; step < 64; step++) {
+      expect(stepToTime(step, bpm) - stepToTime(step - 1, bpm)).toBeCloseTo(0.125, 12)
+    }
+  })
+})
