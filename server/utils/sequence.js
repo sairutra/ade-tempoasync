@@ -9,3 +9,4 @@ function createSequence(list) {
     return dll;
 }
 
+module.exports = createSequence;
