@@ -14,6 +14,8 @@ import { createEmptyTimelineState, getTimelineDuration } from '../model/selector
 import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
 import { TransportClock } from '../playback/transportClock'
+import { TimelineSocket } from '../sync/socket'
+import { useBackendSync } from '../sync/useBackendSync'
 import { initViewportState, viewportReducer, type ViewportState } from '../viewport/viewportReducer'
 
 /**
@@ -80,6 +82,15 @@ export function TimelineProvider({ initialState = null, children }: TimelineProv
     }),
     [],
   )
+
+  // Model edits stream to the backend; one socket per provider, closed on unmount.
+  const [socket] = useState(() => new TimelineSocket())
+  useBackendSync(model, socket)
+  useEffect(() => {
+    socket.connect()
+    return () => socket.close()
+  }, [socket])
+
   const duration = useMemo(() => getTimelineDuration(model), [model])
   const [viewportState, dispatch] = useReducer(viewportReducer, null, () =>
     initViewportState(duration, { bpmMin: model.bpmMin, bpmMax: model.bpmMax }),
