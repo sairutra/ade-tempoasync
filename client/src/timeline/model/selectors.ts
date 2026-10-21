@@ -8,6 +8,33 @@ export const END_PADDING_SECONDS = 2
 export const DEFAULT_BPM_MIN = 60
 export const DEFAULT_BPM_MAX = 200
 
+/** Hard limits for the editable BPM range: every BPM must stay positive (playback divides by it). */
+export const BPM_RANGE_FLOOR = 1
+export const BPM_RANGE_CEIL = 999
+/** Smallest allowed bpmMax - bpmMin. */
+export const MIN_BPM_SPAN = 10
+
+/**
+ * Makes a requested BPM range valid: rounds to whole BPM, keeps it inside
+ * [BPM_RANGE_FLOOR, BPM_RANGE_CEIL] and at least MIN_BPM_SPAN wide. `edited` says which end the
+ * user changed, so that end wins and the other one moves to keep the span (e.g. raising min past
+ * max pushes max up). Returns null for non-finite input.
+ */
+export function normalizeBpmRange(
+  bpmMin: number,
+  bpmMax: number,
+  edited: 'min' | 'max' = 'max',
+): { bpmMin: number; bpmMax: number } | null {
+  if (!Number.isFinite(bpmMin) || !Number.isFinite(bpmMax)) return null
+  const clampTo = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)))
+  if (edited === 'min') {
+    const min = clampTo(bpmMin, BPM_RANGE_FLOOR, BPM_RANGE_CEIL - MIN_BPM_SPAN)
+    return { bpmMin: min, bpmMax: clampTo(Math.max(bpmMax, min + MIN_BPM_SPAN), min + MIN_BPM_SPAN, BPM_RANGE_CEIL) }
+  }
+  const max = clampTo(bpmMax, BPM_RANGE_FLOOR + MIN_BPM_SPAN, BPM_RANGE_CEIL)
+  return { bpmMin: clampTo(Math.min(bpmMin, max - MIN_BPM_SPAN), BPM_RANGE_FLOOR, max - MIN_BPM_SPAN), bpmMax: max }
+}
+
 /** Step of the track's last point (every line starts at step 0). */
 export function trackLastStep(track: Pick<Track, 'bpms'>): number {
   return track.bpms.length - 1

@@ -1,5 +1,6 @@
 .tl-root {
   --tl-header-width: 160px;
+  --tl-axis-width: 52px;
   --tl-ruler-height: 28px;
   --tl-track-height: 64px;
   --tl-bg: #1e1f24;
@@ -31,7 +32,9 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--tl-header-width) minmax(0, 1fr);
+  /* headers | BPM axis | lanes | vertical scrollbar */
+  grid-template-columns: var(--tl-header-width) var(--tl-axis-width) minmax(0, 1fr) auto;
+  /* ruler | lanes | horizontal scrollbar */
   grid-template-rows: var(--tl-ruler-height) minmax(0, 1fr) auto;
   user-select: none;
   overscroll-behavior: contain;
@@ -96,6 +99,7 @@
 }
 
 .tl-toolbar {
+  grid-area: 1 / 1;
   display: flex;
   gap: 4px;
   align-items: center;
@@ -133,42 +137,109 @@
 }
 
 .tl-ruler-wrap {
+  grid-area: 1 / 3;
   min-width: 0;
   cursor: text; /* I-beam: "place the playhead here" */
   touch-action: none;
 }
 
-/* Grid canvas sits behind the scrolling body, under the lane column only. */
-.tl-body-wrap {
-  grid-column: 1 / -1;
-  position: relative;
+.tl-headers {
+  grid-area: 2 / 1;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+/* BPM range ends: max above the axis, min below it. */
+.tl-range-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+.tl-range-cell-max {
+  grid-area: 1 / 2;
+  border-bottom: 1px solid var(--tl-border);
+}
+
+.tl-range-cell-min {
+  grid-area: 3 / 2;
+  border-top: 1px solid var(--tl-border);
+}
+
+.tl-range-input {
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Arrow keys step the value; the tiny native spinners don't fit the column. */
+.tl-range-input::-webkit-inner-spin-button,
+.tl-range-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tl-range-input:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-range-input:focus-visible {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: -1px;
+}
+
+/* Y-axis: BPM labels, drag to scroll vertically. */
+.tl-yaxis-cell {
+  grid-area: 2 / 2;
+  min-height: 0;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+.tl-yaxis {
+  width: 100%;
+  height: 100%;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.tl-yaxis-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Visible lane area: clips the content, which is moved by one transform on both axes. */
+.tl-lanes {
+  grid-area: 2 / 3;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* A canvas is a replaced element: `inset` won't stretch it, so size it explicitly. */
 .tl-grid {
   position: absolute;
   top: 0;
-  left: var(--tl-header-width);
-  width: calc(100% - var(--tl-header-width));
-  pointer-events: none;
-}
-
-.tl-body {
-  position: relative;
-  display: flex;
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.tl-headers {
-  flex: 0 0 var(--tl-header-width);
-  position: sticky;
   left: 0;
-  z-index: 1;
-  background: var(--tl-panel);
-  border-right: 1px solid var(--tl-border);
+  pointer-events: none;
 }
 
 .tl-track-header {
@@ -197,27 +268,16 @@
   font-weight: 600;
 }
 
-.tl-headers,
-.tl-lanes {
-  min-height: max(100%, calc(var(--tl-track-height) * var(--tl-track-count, 1)));
-}
-
-.tl-lanes {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .tl-lanes-content {
   position: relative;
-  height: max(100%, calc(var(--tl-track-height) * var(--tl-track-count, 1)));
   will-change: transform;
 }
 
-/* Lines span bpmMax (top) to bpmMin (bottom) in here; insets keep the extremes (and labels) visible. */
+/* Lines span bpmMax (top) to bpmMin (bottom) in here; top and height come from the BPM viewport. */
 .tl-lines {
   position: absolute;
-  inset: 22px 0 10px;
+  left: 0;
+  right: 0;
 }
 
 /* One svg per track; it spans the full lane height and stretches its model-unit viewBox. */
@@ -331,13 +391,26 @@
 }
 
 .tl-scrollbar-spacer {
+  grid-area: 3 / 1;
   background: var(--tl-panel);
   border-right: 1px solid var(--tl-border);
 }
 
 .tl-scrollbar {
+  grid-area: 3 / 3;
   overflow-x: scroll;
   overflow-y: hidden;
+  background: var(--tl-panel);
+}
+
+.tl-scrollbar.tl-scrollbar-y {
+  grid-area: 2 / 4;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+.tl-scrollbar-corner {
+  grid-area: 3 / 4;
   background: var(--tl-panel);
 }
 
@@ -347,7 +420,7 @@
  */
 .tl-playhead-layer {
   position: absolute;
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1 / 3;
   inset: 0;
   overflow: hidden;

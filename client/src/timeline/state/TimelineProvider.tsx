@@ -29,6 +29,12 @@ export type ViewportActions = {
   scrollTo: (scrollX: number) => void
   zoomAt: (factor: number, anchorX: number) => void
   zoomToFit: () => void
+  /** Vertical (BPM) axis. y is measured from the top of the visible lane area. */
+  resizeY: (viewHeight: number) => void
+  scrollYBy: (dy: number) => void
+  scrollYTo: (scrollY: number) => void
+  zoomYAt: (factor: number, anchorY: number) => void
+  zoomYToFit: () => void
 }
 
 /** Node indices (into bpms) are also steps: every line starts at step 0. Stable for the provider's lifetime. */
@@ -42,6 +48,8 @@ export type ModelActions = {
   shiftLine: (trackId: string, base: readonly number[], delta: number) => void
   /** Adds a flat line; a colour already in use is shifted to a distinct shade. */
   addTrack: (track: NewTrackInput) => void
+  /** Sets the lane area's BPM range; `edited` is the end the user changed (it wins on conflicts). */
+  setBpmRange: (bpmMin: number, bpmMax: number, edited?: 'min' | 'max') => void
 }
 
 type ViewportContextValue = ViewportState & { actions: ViewportActions }
@@ -62,13 +70,21 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
       moveNode: (trackId, fromStep, toStep) => modelDispatch({ type: 'moveNode', trackId, fromStep, toStep }),
       shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
       addTrack: (track) => modelDispatch({ type: 'addTrack', track }),
+      setBpmRange: (bpmMin, bpmMax, edited) => modelDispatch({ type: 'setBpmRange', bpmMin, bpmMax, edited }),
     }),
     [],
   )
   const duration = useMemo(() => getTimelineDuration(model), [model])
-  const [viewportState, dispatch] = useReducer(viewportReducer, duration, initViewportState)
+  const [viewportState, dispatch] = useReducer(viewportReducer, null, () =>
+    initViewportState(duration, { bpmMin: model.bpmMin, bpmMax: model.bpmMax }),
+  )
 
   useEffect(() => dispatch({ type: 'setDuration', duration }), [duration])
+  // The model owns the BPM range; the vertical viewport follows it (keeping zoom and centre).
+  useEffect(
+    () => dispatch({ type: 'setBpmRange', bpmMin: model.bpmMin, bpmMax: model.bpmMax }),
+    [model.bpmMin, model.bpmMax],
+  )
 
   // Playback runs at the project BPM up to the end of the scrollable timeline.
   const endStep = timeToStep(duration, model.projectBpm)
@@ -87,6 +103,11 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
       scrollTo: (scrollX) => dispatch({ type: 'scrollTo', scrollX }),
       zoomAt: (factor, anchorX) => dispatch({ type: 'zoomAt', factor, anchorX }),
       zoomToFit: () => dispatch({ type: 'zoomToFit' }),
+      resizeY: (viewHeight) => dispatch({ type: 'resizeY', viewHeight }),
+      scrollYBy: (dy) => dispatch({ type: 'scrollYBy', dy }),
+      scrollYTo: (scrollY) => dispatch({ type: 'scrollYTo', scrollY }),
+      zoomYAt: (factor, anchorY) => dispatch({ type: 'zoomYAt', factor, anchorY }),
+      zoomYToFit: () => dispatch({ type: 'zoomYToFit' }),
     }),
     [],
   )

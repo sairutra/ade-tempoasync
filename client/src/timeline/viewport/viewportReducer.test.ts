@@ -27,3 +27,35 @@ describe('viewportReducer', () => {
     expect(s.viewport.scrollX).toBe(3000 - 600)
   })
 })
+
+describe('viewportReducer (BPM axis)', () => {
+  const sized = () => {
+    let s = initViewportState(60, { bpmMin: 60, bpmMax: 200 })
+    s = viewportReducer(s, { type: 'resize', viewWidth: 600 })
+    return viewportReducer(s, { type: 'resizeY', viewHeight: 400 })
+  }
+
+  it('starts fitted and only scrolls once stretched', () => {
+    let s = sized()
+    expect(s.bpmViewport).toEqual({ zoom: 1, scrollY: 0 })
+    expect(viewportReducer(s, { type: 'scrollYBy', dy: 100 })).toBe(s)
+    s = viewportReducer(s, { type: 'zoomYAt', factor: 3, anchorY: 0 })
+    s = viewportReducer(s, { type: 'scrollYBy', dy: 100 })
+    expect(s.bpmViewport).toEqual({ zoom: 3, scrollY: 100 })
+  })
+
+  it('keeps the zoom when the BPM range changes, and fits on request', () => {
+    let s = viewportReducer(sized(), { type: 'zoomYAt', factor: 2, anchorY: 200 })
+    s = viewportReducer(s, { type: 'setBpmRange', bpmMin: 40, bpmMax: 300 })
+    expect(s.bpmBounds).toMatchObject({ bpmMin: 40, bpmMax: 300 })
+    expect(s.bpmViewport.zoom).toBe(2)
+    s = viewportReducer(s, { type: 'zoomYToFit' })
+    expect(s.bpmViewport).toEqual({ zoom: 1, scrollY: 0 })
+    expect(viewportReducer(s, { type: 'zoomYToFit' })).toBe(s)
+  })
+
+  it('leaves the horizontal axis alone', () => {
+    const s = sized()
+    expect(viewportReducer(s, { type: 'zoomYAt', factor: 2, anchorY: 0 }).viewport).toBe(s.viewport)
+  })
+})

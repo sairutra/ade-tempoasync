@@ -1,9 +1,16 @@
 import { buildNewTrack, type NewTrackInput } from './newTrack'
 import { addNode, moveNode, removeNode, setNodeBpm, shiftBpms } from './nodes'
+import { normalizeBpmRange } from './selectors'
 import type { TimelineState, Track } from './types'
 
 /** Every line starts at step 0, so node indices (into bpms) and steps are the same numbers. */
-export type ModelAction = LineAction | TrackAction
+export type ModelAction = LineAction | TrackAction | RangeAction
+
+/**
+ * Sets the visible BPM range of the lane area (normalized, see normalizeBpmRange). Points outside
+ * the new range keep their values and are drawn clamped, as everywhere else.
+ */
+export type RangeAction = { type: 'setBpmRange'; bpmMin: number; bpmMax: number; edited?: 'min' | 'max' }
 
 /** Adds a track; its colour is made distinct from the existing tracks' (see buildNewTrack). */
 export type TrackAction = { type: 'addTrack'; track: NewTrackInput }
@@ -44,6 +51,11 @@ function apply(line: Line, action: LineAction): Line {
  * tracks don't re-render while a node is dragged.
  */
 export function modelReducer(state: TimelineState, action: ModelAction): TimelineState {
+  if (action.type === 'setBpmRange') {
+    const range = normalizeBpmRange(action.bpmMin, action.bpmMax, action.edited)
+    if (!range || (range.bpmMin === state.bpmMin && range.bpmMax === state.bpmMax)) return state
+    return { ...state, ...range }
+  }
   if (action.type === 'addTrack') {
     const track = buildNewTrack(state, action.track)
     return { ...state, tracks: { ...state.tracks, [track.id]: track } }

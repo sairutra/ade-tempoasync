@@ -28,6 +28,13 @@ higher BPM drawn higher. Out-of-range values stay in the model as-is and are cla
 drawn (`clampBpm`). The header column is ordered by name, then id
 (`compareTracks` in `selectors.ts`), so header order is derived, not stored.
 
+**The BPM range is editable.** The y-axis column left of the lanes labels the BPM range; the inputs
+above it (max) and below it (min) change `bpmMin`/`bpmMax` via the `setBpmRange` model action.
+Values are committed on Enter/blur (↑/↓ step by 1, Shift by 10; Escape reverts) and normalized by
+`normalizeBpmRange`: whole BPM, within 1–999, at least 10 BPM wide; the end you edited wins and
+pushes the other one if they'd cross. Points outside a narrowed range keep their values (drawn
+clamped), and dragging still clamps edits into the current range.
+
 The timeline duration is `stepToTime(furthest last point over all tracks) + 2 s` of padding.
 
 ```
@@ -37,13 +44,14 @@ src/timeline/
               trackPath.ts             – SVG path + viewBox for a track, in model units (pure)
   viewport/   viewport.ts              – the one time↔px transform + scroll/zoom math (pure)
               ticks.ts                 – bar/beat/16th tick intervals and labels (pure)
-              viewportReducer.ts       – scroll/zoom state transitions (pure)
+              bpmViewport.ts           – the BPM↔px transform, vertical scroll/zoom, BPM ticks (pure)
+              viewportReducer.ts       – scroll/zoom state transitions, both axes (pure)
   playback/   transport.ts             – transport state + position at the project BPM (pure)
               transportClock.ts        – non-React clock: rAF loop, play/pause/stop/seek, listeners
               format.ts                – bar.beat.16th and m:ss.mmm readouts
   state/      TimelineProvider.tsx     – React wiring: model, viewport and transport-clock contexts
-  components/ Timeline, Ruler, GridCanvas, TrackHeader, TrackLine, Scrollbar, TransportBar,
-              Playhead, useCanvas, useWheelZoomScroll
+  components/ Timeline, Ruler, GridCanvas, BpmAxis, BpmRangeInput, TrackHeader, TrackLine,
+              Scrollbar, TransportBar, Playhead, useCanvas, useWheelZoomScroll
   mock/       mockTimeline.ts          – 5 BPM curves over ~30 bars at 120 BPM, all starting at step 0
 ```
 
@@ -96,13 +104,31 @@ scrolls horizontally, so the ruler and lanes can't drift.
 
 **Input.** Wheel events are coalesced per animation frame (`useWheelZoomScroll`):
 
-- Ctrl/Cmd + wheel or trackpad pinch: zoom around the cursor (`zoomAt` keeps `xToTime(cursorX)` fixed)
+- Ctrl/Cmd + wheel or trackpad pinch: zoom time around the cursor (`zoomAt` keeps `xToTime(cursorX)` fixed)
+- Ctrl/Cmd + wheel or pinch over the BPM axis, or Alt + wheel anywhere: stretch the BPM axis
+  around the cursor (`zoomYAt` keeps `yToBpm(cursorY)` fixed)
 - Trackpad horizontal swipe or Shift + wheel: horizontal scroll
-- Plain vertical wheel: scrolls tracks vertically when they overflow, otherwise horizontally
-- Toolbar: zoom out, zoom in (centered), Fit
+- Plain vertical wheel: scrolls the BPM axis when it's stretched past the view, otherwise horizontally
+- BPM axis: drag to scroll vertically, double-click to fit the range; vertical scrollbar on the right
+- Toolbar: zoom out, zoom in (centered), Fit (both axes)
 
 Zoom is clamped to 2–2000 px/s. Scroll is clamped to `[0, duration × pxPerSecond − viewWidth]`.
 The view zooms to fit on first measure.
+
+**Vertical zoom.** `bpmViewport.ts` mirrors `viewport.ts` for the y-axis. Content is the BPM range
+plus fixed padding (22px above `bpmMax` for line labels, 10px below `bpmMin`):
+
+```
+y(bpm) = PAD_TOP + (bpmMax - bpm) × pxPerBpm - scrollY
+pxPerBpm = (viewHeight - PAD_TOP - PAD_BOTTOM) / (bpmMax - bpmMin) × zoom      // zoom ∈ [1, 40]
+```
+
+Zoom is stored relative to fit, so zoom 1 always shows the whole range and a resize or a new range
+keeps the same stretch; on a range change the BPM at the view's centre stays put where possible
+(`rebound`). Lines need no new math: `.tl-lines` just gets `top = PAD_TOP` and
+`height = (bpmMax - bpmMin) × pxPerBpm`, and the lanes content uses one `translate(-scrollX, -scrollY)`.
+Axis labels and the horizontal grid lines share `visibleBpmTicks`: the smallest 1/2/5 × 10ⁿ interval
+at least 22px apart, powers of ten emphasised, and the range ends always labelled.
 
 **Canvases.** `useCanvas` sizes the backing store to CSS size × `devicePixelRatio`. It redraws on
 `ResizeObserver` and DPR changes, and draws 1-device-pixel lines with `fillRect` at rounded device
