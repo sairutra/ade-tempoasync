@@ -52,6 +52,21 @@ export function roundBpm(bpm: number): number {
   return Math.round(bpm / EDIT_RESOLUTION_BPM) * EDIT_RESOLUTION_BPM
 }
 
+/** A vertical drag moves BPMs in steps of this size by default... */
+export const DRAG_STEP_BPM = 1
+/** ...and in steps of this size with Alt held, for fine adjustment. */
+export const FINE_DRAG_STEP_BPM = EDIT_RESOLUTION_BPM
+
+/**
+ * Snaps a vertical drag's BPM change to whole drag steps. The step applies to the change, not the
+ * absolute value, so a node at 120.3 moves to 121.3, 122.3, … and keeps any fine adjustment made
+ * earlier. The result is rounded to the edit resolution to drop float noise.
+ */
+export function snapDragDelta(delta: number, fine: boolean): number {
+  const step = fine ? FINE_DRAG_STEP_BPM : DRAG_STEP_BPM
+  return roundBpm(Math.round(delta / step) * step)
+}
+
 /** True if `nodes` is a valid node list for a track of `length` points. */
 export function isValidNodes(nodes: readonly number[], length: number): boolean {
   if (nodes[0] !== 0 || nodes[nodes.length - 1] !== length - 1) return false

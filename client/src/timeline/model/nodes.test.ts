@@ -10,6 +10,7 @@ import {
   nodeMoveRange,
   removeNode,
   roundBpm,
+  snapDragDelta,
   setNodeBpm,
   shiftBpms,
 } from './nodes'
@@ -311,4 +312,23 @@ describe('createTimelineState nodes', () => {
 it('roundBpm rounds to 0.1 BPM', () => {
   expect(roundBpm(120.04)).toBeCloseTo(120)
   expect(roundBpm(120.06)).toBeCloseTo(120.1)
+})
+
+describe('snapDragDelta', () => {
+  it('snaps to whole BPM by default', () => {
+    expect(snapDragDelta(0.4, false)).toBe(0)
+    expect(snapDragDelta(0.6, false)).toBe(1)
+    expect(snapDragDelta(2.49, false)).toBe(2)
+    expect(snapDragDelta(-1.7, false)).toBe(-2)
+  })
+
+  it('snaps to 0.1 BPM when fine', () => {
+    expect(snapDragDelta(0.04, true)).toBeCloseTo(0)
+    expect(snapDragDelta(0.36, true)).toBeCloseTo(0.4)
+    expect(snapDragDelta(-2.47, true)).toBeCloseTo(-2.5)
+  })
+
+  it('keeps the fractional part of the starting BPM in coarse steps', () => {
+    expect(roundBpm(120.3 + snapDragDelta(1.2, false))).toBeCloseTo(121.3)
+  })
 })

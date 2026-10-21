@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
-import { clampShift, nodeMoveRange, roundBpm } from '../model/nodes'
+import { clampShift, nodeMoveRange, roundBpm, snapDragDelta } from '../model/nodes'
 import { bpmToFraction, clampBpm } from '../model/selectors'
 import { stepToTime, timeToStep } from '../model/tempo'
 import { buildTrackPath, trackViewBox } from '../model/trackPath'
@@ -67,6 +67,7 @@ type Drag =
  * it (the line between its neighbours becomes straight); the first and last nodes stay.
  * Ctrl+dragging the line or any node moves the whole line up or down, keeping its shape within the
  * BPM range. Drags are relative to where the press started, so grabbing the line never makes it jump.
+ * Vertical drags (a node or the whole line) move in whole BPM steps; holding Alt switches to 0.1.
  */
 export const TrackLine = memo(function TrackLine({
   track,
@@ -158,9 +159,10 @@ export const TrackLine = memo(function TrackLine({
     const dx = e.clientX - (drag.kind === 'node' ? drag.startX : 0)
     const dy = e.clientY - drag.startY
     const bpmPerPx = (bpmMax - bpmMin) / svgRef.current!.getBoundingClientRect().height
-    const dBpm = -dy * bpmPerPx
+    // Whole BPM steps by default; Alt for 0.1. Read per move, so Alt can be toggled mid-drag.
+    const dBpm = snapDragDelta(-dy * bpmPerPx, e.altKey)
     if (drag.kind === 'line') {
-      onShiftLine(track.id, drag.base, clampShift(drag.base, roundBpm(dBpm), bpmMin, bpmMax))
+      onShiftLine(track.id, drag.base, clampShift(drag.base, dBpm, bpmMin, bpmMax))
       return
     }
     const index = drag.step
@@ -219,7 +221,7 @@ export const TrackLine = memo(function TrackLine({
           onContextMenu={suppressContextMenu}
           {...dragHandlers}
         >
-          <title>{`${track.name} — click to add a node, Ctrl+drag to move the line`}</title>
+          <title>{`${track.name} — click to add a node, Ctrl+drag to move the line, Alt for 0.1 BPM steps`}</title>
         </path>
       </svg>
       <span className="tl-line-name" style={{ ...color, top: `${labelTop}%`, transform: 'translateY(calc(-100% - 4px))' }}>
