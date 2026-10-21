@@ -32,5 +32,5 @@ router.post('/createChannel', (req, res) => {
 	let BPMvalues = req.body.BPMvalues;
 
 	req.app.locals.project.addChannel(name, id, BPMvalues);
-	req.app.locals.project.channels.get(name).sayHi();
+	// req.app.locals.project.channels.get(name).sayHi();
 })
