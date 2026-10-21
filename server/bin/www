@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require("../app");
+var debug = require("debug")("server:server");
+var http = require("http");
+var navigator = require("jzz");
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || "3000");
+app.set("port", port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on("error", onError);
+server.on("listening", onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== "listen") {
+    throw error;
+  }
+
+  var bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case "EACCES":
+      console.error(bind + " requires elevated privileges");
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(bind + " is already in use");
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+  debug("Listening on " + bind);
+  let midi = null;
+  function onMIDISuccess(midiAccess) {
+    console.log("MIDI ready!");
+    midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
+    listInputsAndOutputs(midiAccess);
+  }
+  function listInputsAndOutputs(midiAccess) {
+    console.log("inputs!");
+    midiAccess.inputs.forEach((input, key) => {
+      console.log(`Port ID: ${key}`);
+      console.log(`Device Name: ${input.name}`);
+      console.log(`Manufacturer: ${input.manufacturer}`);
+      console.log(`State: ${input.state}`);
+      sendMiddleC(midiAccess, key);
+    });
+
+    console.log("outputs!");
+    midiAccess.outputs.forEach((output, key) => {
+      console.log(`Port ID: ${key}`);
+      console.log(`Device Name: ${output.name}`);
+      console.log(`Manufacturer: ${output.manufacturer}`);
+      console.log(`State: ${output.state}`);
+    });
+  }
+
+  function onMIDIFailure(msg) {
+    console.error(`Failed to get MIDI access - ${msg}`);
+  }
+
+  navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+}
+
+function sendMiddleC(midiAccess, portID) {
+  const noteOnMessage = [0x96, 60, 0x7f]; // Note on middle C, full velocity
+  const output = midiAccess.outputs.get(portID);
+  output.send(noteOnMessage); // Omitting the timestamp means send immediately.
+  output.send([0x86, 60, 0x40], performance.now() + 10000.0); // timestamp = now + 1000ms.
+}
