@@ -238,6 +238,12 @@
   touch-action: none;
 }
 
+/* Ctrl+drag in progress: the whole line moves vertically. */
+.tl-line[data-shifting] path.tl-line-hit,
+.tl-line[data-shifting] ~ .tl-node {
+  cursor: grabbing;
+}
+
 /* Editing node: centred on its point, drags vertically. */
 .tl-node {
   position: absolute;

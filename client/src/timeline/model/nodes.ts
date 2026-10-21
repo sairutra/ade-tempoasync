@@ -107,3 +107,43 @@ function insertionPoint(nodes: readonly number[], index: number): number {
   }
   return lo
 }
+
+/**
+ * Removes node `index` and redraws the points between its neighbours a and b as the straight line
+ * from a to b. The first and last nodes bound the line, so they can't be removed: the line is
+ * returned unchanged for them.
+ */
+export function removeNode(line: Line, index: number): Line {
+  const k = line.nodes.indexOf(index)
+  if (k === -1) throw new Error(`Step ${index} is not a node`)
+  if (k === 0 || k === line.nodes.length - 1) return line
+  const [a, b] = [line.nodes[k - 1], line.nodes[k + 1]]
+  const bpms = line.bpms.slice()
+  resample(bpms, a, b)
+  return { bpms, nodes: [...line.nodes.slice(0, k), ...line.nodes.slice(k + 1)] }
+}
+
+/**
+ * Moves every point of `base` by `delta` BPM. The shape is unchanged, so the nodes stay valid.
+ * Taking the points at the start of a drag (rather than the current ones) keeps repeated shifts
+ * from accumulating floating-point error.
+ */
+export function shiftBpms(base: readonly number[], delta: number): number[] {
+  return base.map((bpm) => bpm + delta)
+}
+
+/**
+ * Limits a whole-line shift so no point leaves [bpmMin, bpmMax]. A line that already sticks out of
+ * the range can still move back towards it, but not further out.
+ */
+export function clampShift(bpms: readonly number[], delta: number, bpmMin: number, bpmMax: number): number {
+  let lo = Infinity
+  let hi = -Infinity
+  for (const bpm of bpms) {
+    if (bpm < lo) lo = bpm
+    if (bpm > hi) hi = bpm
+  }
+  const down = Math.min(0, bpmMin - lo)
+  const up = Math.max(0, bpmMax - hi)
+  return Math.min(up, Math.max(down, delta))
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mockTimeline } from '../mock/mockTimeline'
 import { modelReducer } from './editReducer'
-import { addNode, deriveNodes, isValidNodes, roundBpm, setNodeBpm } from './nodes'
+import { addNode, clampShift, deriveNodes, isValidNodes, removeNode, roundBpm, setNodeBpm, shiftBpms } from './nodes'
 import { createTimelineState } from './selectors'
 
 /** Every point between consecutive nodes lies on the straight line joining them. */
@@ -97,6 +97,58 @@ describe('addNode', () => {
   })
 })
 
+describe('removeNode', () => {
+  // Nodes at 0, 2, 4, 6: up, down, up.
+  const line = { bpms: [100, 110, 120, 110, 100, 110, 120], nodes: [0, 2, 4, 6] }
+
+  it('removes the node and straightens the points between its neighbours', () => {
+    const next = removeNode(line, 4)
+    expect(next.nodes).toEqual([0, 2, 6])
+    expect(next.bpms).toEqual([100, 110, 120, 120, 120, 120, 120])
+    expectStraightBetweenNodes(next.bpms, next.nodes)
+  })
+
+  it('leaves segments outside the neighbours alone and does not mutate the input', () => {
+    const next = removeNode(line, 2)
+    expect(next.bpms.slice(4)).toEqual([100, 110, 120])
+    expect(next.bpms.slice(0, 5)).toEqual([100, 100, 100, 100, 100])
+    expect(line.bpms).toEqual([100, 110, 120, 110, 100, 110, 120])
+    expect(line.nodes).toEqual([0, 2, 4, 6])
+  })
+
+  it('removing an added node restores the straight line', () => {
+    const straight = { bpms: [100, 110, 120, 130, 140], nodes: [0, 4] }
+    const bent = setNodeBpm(addNode(straight, 2), 2, 200)
+    expect(removeNode(bent, 2)).toEqual(straight)
+  })
+
+  it('keeps the first and last nodes and rejects non-nodes', () => {
+    expect(removeNode(line, 0)).toBe(line)
+    expect(removeNode(line, 6)).toBe(line)
+    expect(() => removeNode(line, 3)).toThrow()
+  })
+})
+
+describe('shiftBpms / clampShift', () => {
+  it('moves every point by the same amount, keeping the shape', () => {
+    expect(shiftBpms([100, 110, 120], 5)).toEqual([105, 115, 125])
+  })
+
+  it('stops the line at the range edges', () => {
+    const bpms = [100, 150, 120]
+    expect(clampShift(bpms, 10, 60, 200)).toBe(10)
+    expect(clampShift(bpms, 80, 60, 200)).toBe(50) // highest point hits 200
+    expect(clampShift(bpms, -80, 60, 200)).toBe(-40) // lowest point hits 60
+  })
+
+  it('a line already out of range can move back in but not further out', () => {
+    const bpms = [250, 100]
+    expect(clampShift(bpms, 10, 60, 200)).toBe(0)
+    expect(clampShift(bpms, -30, 60, 200)).toBe(-30)
+    expect(clampShift(bpms, -60, 60, 200)).toBe(-40)
+  })
+})
+
 describe('modelReducer', () => {
   const state = createTimelineState([
     { id: 'a', name: 'A', startStep: 0, bpms: [100, 100, 100], sourceOffset: 0 },
@@ -111,9 +163,30 @@ describe('modelReducer', () => {
     expect(moved.tracks.b).toBe(state.tracks.b)
   })
 
+  it('removes nodes and shifts lines', () => {
+    const bent = modelReducer(modelReducer(state, { type: 'addNode', trackId: 'a', index: 1 }), {
+      type: 'setNodeBpm',
+      trackId: 'a',
+      index: 1,
+      bpm: 120,
+    })
+    const removed = modelReducer(bent, { type: 'removeNode', trackId: 'a', index: 1 })
+    expect(removed.tracks.a.bpms).toEqual([100, 100, 100])
+    expect(removed.tracks.a.nodes).toEqual([0, 2])
+    const shifted = modelReducer(bent, { type: 'shiftLine', trackId: 'a', base: bent.tracks.a.bpms, delta: -10 })
+    expect(shifted.tracks.a.bpms).toEqual([90, 110, 90])
+    expect(shifted.tracks.a.nodes).toBe(bent.tracks.a.nodes)
+    expect(shifted.tracks.b).toBe(state.tracks.b)
+  })
+
+  it('ignores a shift whose base no longer matches the line', () => {
+    expect(modelReducer(state, { type: 'shiftLine', trackId: 'a', base: [1, 2], delta: 5 })).toBe(state)
+  })
+
   it('returns the same state for no-ops and unknown tracks', () => {
     expect(modelReducer(state, { type: 'addNode', trackId: 'a', index: 0 })).toBe(state)
     expect(modelReducer(state, { type: 'addNode', trackId: 'zz', index: 1 })).toBe(state)
+    expect(modelReducer(state, { type: 'removeNode', trackId: 'a', index: 0 })).toBe(state)
   })
 })
 

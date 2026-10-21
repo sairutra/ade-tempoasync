@@ -34,6 +34,9 @@ export type ViewportActions = {
 export type ModelActions = {
   addNode: (trackId: string, index: number) => void
   setNodeBpm: (trackId: string, index: number, bpm: number) => void
+  removeNode: (trackId: string, index: number) => void
+  /** Sets the track's points to `base` moved by `delta` BPM. */
+  shiftLine: (trackId: string, base: readonly number[], delta: number) => void
 }
 
 type ViewportContextValue = ViewportState & { actions: ViewportActions }
@@ -50,6 +53,8 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
     () => ({
       addNode: (trackId, index) => modelDispatch({ type: 'addNode', trackId, index }),
       setNodeBpm: (trackId, index, bpm) => modelDispatch({ type: 'setNodeBpm', trackId, index, bpm }),
+      removeNode: (trackId, index) => modelDispatch({ type: 'removeNode', trackId, index }),
+      shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
     }),
     [],
   )
