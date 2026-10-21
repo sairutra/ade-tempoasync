@@ -25,11 +25,10 @@ class Channel {
 		console.log("hi from channel " + this.id);
 	}
 
-	createMessage(node) {
-		msg = new Message();
-		msg.noteOnMessage = [0x90 + this.id, 60, 0x7f];
-		msg.noteOnMessage = [0x80 + this.id, 60, 0x7f];
-		return msg;
+
+	createMessage(note, BPM) {
+	var msg = new Message(note, BPM);
+	return msg;
 	}
 }
 

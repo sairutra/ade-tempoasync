@@ -10,7 +10,7 @@ var http = require("http");
 var navigator = require("jzz");
 var Channel = require('../channel/channel')
 var Message = require('../utils/message')
-const { createMessage } = require('../utils/message.js');
+
 /**
  * Get port from environment and store in Express.
  */

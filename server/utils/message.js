@@ -12,9 +12,5 @@ class Message {
 
 }
 
-function createMessage(note, BPM) {
-	var msg = new Message(note, BPM);
-	return msg;
-}
 
-module.exports = { Message, createMessage };
+module.exports = { Message };

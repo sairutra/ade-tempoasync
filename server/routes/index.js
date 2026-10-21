@@ -2,7 +2,6 @@ var express = require('express');
 var router = express.Router();
 var DoublyLinkedList = require('../utils/linked_list.js');
 var Message = require('../utils/message.js');
-const { createMessage } = require('../utils/message.js');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -41,6 +40,8 @@ router.post('/message', (req, res) => {
   let note = req.body.note;
   let bpm = req.body.bpm;
 
+  req.app.locals.project.addChannel("momo", 1, [0, 1, 1]);
+  req.app.locals.project.channels.get("momo").c
   const msg = createMessage(note, bpm);
   console.log(msg);
   res.send(":)");
