@@ -35,6 +35,8 @@ export type ModelActions = {
   addNode: (trackId: string, index: number) => void
   setNodeBpm: (trackId: string, index: number, bpm: number) => void
   removeNode: (trackId: string, index: number) => void
+  /** Moves a node horizontally; steps are absolute (not offsets), clamped between its neighbours. */
+  moveNode: (trackId: string, fromStep: number, toStep: number) => void
   /** Sets the track's points to `base` moved by `delta` BPM. */
   shiftLine: (trackId: string, base: readonly number[], delta: number) => void
 }
@@ -54,6 +56,7 @@ export function TimelineProvider({ initialState, children }: { initialState: Tim
       addNode: (trackId, index) => modelDispatch({ type: 'addNode', trackId, index }),
       setNodeBpm: (trackId, index, bpm) => modelDispatch({ type: 'setNodeBpm', trackId, index, bpm }),
       removeNode: (trackId, index) => modelDispatch({ type: 'removeNode', trackId, index }),
+      moveNode: (trackId, fromStep, toStep) => modelDispatch({ type: 'moveNode', trackId, fromStep, toStep }),
       shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
     }),
     [],

@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { mockTimeline } from '../mock/mockTimeline'
 import { modelReducer } from './editReducer'
-import { addNode, clampShift, deriveNodes, isValidNodes, removeNode, roundBpm, setNodeBpm, shiftBpms } from './nodes'
+import {
+  addNode,
+  clampShift,
+  deriveNodes,
+  isValidNodes,
+  moveNode,
+  nodeMoveRange,
+  removeNode,
+  roundBpm,
+  setNodeBpm,
+  shiftBpms,
+} from './nodes'
 import { createTimelineState } from './selectors'
 
 /** Every point between consecutive nodes lies on the straight line joining them. */
@@ -129,6 +140,97 @@ describe('removeNode', () => {
   })
 })
 
+describe('nodeMoveRange / moveNode', () => {
+  // Nodes at relative 0, 4, 8 (absolute 10, 14, 18): flat at 100, up to 140, back to 100.
+  const line = { startStep: 10, bpms: [100, 110, 120, 130, 140, 130, 120, 110, 100], nodes: [0, 4, 8] }
+
+  it('an interior node stays strictly between its neighbours', () => {
+    expect(nodeMoveRange(line, 4)).toEqual({ min: 11, max: 17 })
+  })
+
+  it('the first node can go back to step 0; the last node forward without limit', () => {
+    expect(nodeMoveRange(line, 0)).toEqual({ min: 0, max: 13 })
+    expect(nodeMoveRange(line, 8)).toEqual({ min: 15, max: Infinity })
+    expect(nodeMoveRange({ startStep: 3, bpms: [90], nodes: [0] }, 0)).toEqual({ min: 0, max: Infinity })
+  })
+
+  it('throws for a step that is not a node', () => {
+    expect(() => nodeMoveRange(line, 2)).toThrow()
+    expect(() => moveNode(line, 2, 13)).toThrow()
+  })
+
+  it('moves an interior node, keeping its BPM and redrawing both segments', () => {
+    const moved = moveNode(line, 4, 12)
+    expect(moved.startStep).toBe(10)
+    expect(moved.nodes).toEqual([0, 2, 8])
+    expect(moved.bpms).toHaveLength(9)
+    expect(moved.bpms[2]).toBe(140)
+    expect(moved.bpms[0]).toBe(100)
+    expect(moved.bpms[8]).toBe(100)
+    expectStraightBetweenNodes(moved.bpms, moved.nodes)
+  })
+
+  it('clamps to one step from each neighbour, never onto or past it', () => {
+    expect(moveNode(line, 4, 0).nodes).toEqual([0, 1, 8])
+    expect(moveNode(line, 4, 10).nodes).toEqual([0, 1, 8])
+    expect(moveNode(line, 4, 99).nodes).toEqual([0, 7, 8])
+    expect(moveNode(line, 4, 18).nodes).toEqual([0, 7, 8])
+  })
+
+  it('returns the same line when the node does not move', () => {
+    expect(moveNode(line, 4, 14)).toBe(line)
+    expect(moveNode(line, 4, 14.2)).toBe(line) // rounded to the nearest step
+  })
+
+  it('is lossless: moving a node back restores the line', () => {
+    const back = moveNode(moveNode(line, 4, 11), 1, 14)
+    expect(back.nodes).toEqual(line.nodes)
+    back.bpms.forEach((bpm, i) => expect(bpm).toBeCloseTo(line.bpms[i], 9))
+  })
+
+  it('moving the first node back moves the start of the line and re-indexes the rest', () => {
+    const moved = moveNode(line, 0, 6)
+    expect(moved.startStep).toBe(6)
+    expect(moved.nodes).toEqual([0, 8, 12])
+    expect(moved.bpms).toHaveLength(13)
+    expect(moved.bpms[0]).toBe(100)
+    expect(moved.bpms[8]).toBe(140)
+    expect(moved.bpms[12]).toBe(100)
+    expectStraightBetweenNodes(moved.bpms, moved.nodes)
+    expect(moveNode(line, 0, -5).startStep).toBe(0)
+  })
+
+  it('moving the first node forward shortens the line, up to one step before the next node', () => {
+    const moved = moveNode(line, 0, 50)
+    expect(moved.startStep).toBe(13)
+    expect(moved.nodes).toEqual([0, 1, 5])
+    expect(moved.bpms).toEqual([100, 140, 130, 120, 110, 100])
+  })
+
+  it('moving the last node stretches or shrinks the line', () => {
+    const longer = moveNode(line, 8, 22)
+    expect(longer.nodes).toEqual([0, 4, 12])
+    expect(longer.bpms).toHaveLength(13)
+    expect(longer.bpms[12]).toBe(100)
+    expectStraightBetweenNodes(longer.bpms, longer.nodes)
+    const shorter = moveNode(line, 8, 0)
+    expect(shorter.nodes).toEqual([0, 4, 5])
+    expect(shorter.bpms).toEqual([100, 110, 120, 130, 140, 100])
+  })
+
+  it('a single-point line just moves', () => {
+    const one = { startStep: 3, bpms: [90], nodes: [0] }
+    expect(moveNode(one, 0, 7)).toEqual({ startStep: 7, bpms: [90], nodes: [0] })
+  })
+
+  it('every result keeps valid nodes', () => {
+    for (const [index, to] of [[0, 2], [0, 13], [4, 11], [4, 17], [8, 15], [8, 40]]) {
+      const moved = moveNode(line, index, to)
+      expect(isValidNodes(moved.nodes, moved.bpms.length)).toBe(true)
+    }
+  })
+})
+
 describe('shiftBpms / clampShift', () => {
   it('moves every point by the same amount, keeping the shape', () => {
     expect(shiftBpms([100, 110, 120], 5)).toEqual([105, 115, 125])
@@ -187,6 +289,35 @@ describe('modelReducer', () => {
     expect(modelReducer(state, { type: 'addNode', trackId: 'a', index: 0 })).toBe(state)
     expect(modelReducer(state, { type: 'addNode', trackId: 'zz', index: 1 })).toBe(state)
     expect(modelReducer(state, { type: 'removeNode', trackId: 'a', index: 0 })).toBe(state)
+  })
+})
+
+describe('modelReducer moveNode', () => {
+  const state = createTimelineState([
+    { id: 'a', name: 'A', startStep: 4, bpms: [100, 110, 120, 110, 100], nodes: [0, 2, 4], sourceOffset: 0 },
+    { id: 'b', name: 'B', startStep: 0, bpms: [90, 90], sourceOffset: 0 },
+  ])
+
+  it('moves by absolute step, and only the edited track gets a new object', () => {
+    const next = modelReducer(state, { type: 'moveNode', trackId: 'a', fromStep: 6, toStep: 7 })
+    expect(next.tracks.a.nodes).toEqual([0, 3, 4])
+    expect(next.tracks.a.bpms[3]).toBe(120)
+    expect(next.tracks.b).toBe(state.tracks.b)
+  })
+
+  it('moving the first node changes startStep; follow-up moves use the new absolute step', () => {
+    const once = modelReducer(state, { type: 'moveNode', trackId: 'a', fromStep: 4, toStep: 2 })
+    expect(once.tracks.a.startStep).toBe(2)
+    const twice = modelReducer(once, { type: 'moveNode', trackId: 'a', fromStep: 2, toStep: 1 })
+    expect(twice.tracks.a.startStep).toBe(1)
+    expect(twice.tracks.a.nodes).toEqual([0, 5, 7])
+  })
+
+  it('ignores a step that is not a node, an unknown track, and a no-op move', () => {
+    expect(modelReducer(state, { type: 'moveNode', trackId: 'a', fromStep: 5, toStep: 6 })).toBe(state)
+    expect(modelReducer(state, { type: 'moveNode', trackId: 'zz', fromStep: 6, toStep: 7 })).toBe(state)
+    expect(modelReducer(state, { type: 'moveNode', trackId: 'a', fromStep: 6, toStep: 6 })).toBe(state)
+    expect(modelReducer(state, { type: 'moveNode', trackId: 'a', fromStep: 6, toStep: 8 }).tracks.a.nodes).toEqual([0, 3, 4])
   })
 })
 

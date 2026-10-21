@@ -115,6 +115,7 @@ export function Timeline() {
                         onAddNode={modelActions.addNode}
                         onSetNodeBpm={modelActions.setNodeBpm}
                         onRemoveNode={modelActions.removeNode}
+                        onMoveNode={modelActions.moveNode}
                         onShiftLine={modelActions.shiftLine}
                       />
                     ),

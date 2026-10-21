@@ -244,7 +244,7 @@
   cursor: grabbing;
 }
 
-/* Editing node: centred on its point, drags vertically. */
+/* Editing node: centred on its point, drags vertically or horizontally (one axis per drag). */
 .tl-node {
   position: absolute;
   width: 9px;
@@ -254,8 +254,19 @@
   border-radius: 50%;
   background: var(--tl-bg);
   transform: translate(-50%, -50%);
-  cursor: ns-resize;
+  cursor: move;
   touch-action: none;
+}
+
+/* Once a drag picks its axis, the cursor shows it (on the handle and over the captured line). */
+.tl-node[data-axis='x'],
+.tl-line[data-axis='x'] path.tl-line-hit {
+  cursor: ew-resize;
+}
+
+.tl-node[data-axis='y'],
+.tl-line[data-axis='y'] path.tl-line-hit {
+  cursor: ns-resize;
 }
 
 /* Zoomed out: a node per step would merge into a bead chain, so shrink them (still draggable). */
