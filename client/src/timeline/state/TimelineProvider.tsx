@@ -52,6 +52,9 @@ export type ModelActions = {
   addTrack: (track: NewTrackInput) => void
   /** Sets the lane area's BPM range; `edited` is the end the user changed (it wins on conflicts). */
   setBpmRange: (bpmMin: number, bpmMax: number, edited?: 'min' | 'max') => void
+  /** Brackets a drag: edits in between are sent to the backend once, when the last drag ends. */
+  beginDrag: () => void
+  endDrag: () => void
 }
 
 type ViewportContextValue = ViewportState & { actions: ViewportActions }
@@ -70,6 +73,8 @@ export type TimelineProviderProps = {
 export function TimelineProvider({ initialState = null, children }: TimelineProviderProps) {
   // Undo can wrap this reducer later (past/present/future) without touching the components.
   const [model, modelDispatch] = useReducer(modelReducer, initialState, (s) => s ?? createEmptyTimelineState())
+  // A count, not a flag, so overlapping drags (multi-touch) only resume sync when all have ended.
+  const [activeDrags, setActiveDrags] = useState(0)
   const modelActions = useMemo<ModelActions>(
     () => ({
       addNode: (trackId, index) => modelDispatch({ type: 'addNode', trackId, index }),
@@ -79,13 +84,15 @@ export function TimelineProvider({ initialState = null, children }: TimelineProv
       shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
       addTrack: (track) => modelDispatch({ type: 'addTrack', track }),
       setBpmRange: (bpmMin, bpmMax, edited) => modelDispatch({ type: 'setBpmRange', bpmMin, bpmMax, edited }),
+      beginDrag: () => setActiveDrags((n) => n + 1),
+      endDrag: () => setActiveDrags((n) => Math.max(0, n - 1)),
     }),
     [],
   )
 
-  // Model edits stream to the backend; one socket per provider, closed on unmount.
+  // Model edits stream to the backend (held while dragging); one socket per provider, closed on unmount.
   const [socket] = useState(() => new TimelineSocket())
-  useBackendSync(model, socket)
+  useBackendSync(model, socket, activeDrags > 0)
   useEffect(() => {
     socket.connect()
     return () => socket.close()

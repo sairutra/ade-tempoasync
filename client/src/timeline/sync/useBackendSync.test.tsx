@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, StrictMode, useEffect, useReducer, type ActionDispatch } from 'react'
+import { act, StrictMode, useEffect, useReducer, useState, type ActionDispatch, type Dispatch, type SetStateAction } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { modelReducer, type ModelAction } from '../model/editReducer'
@@ -25,13 +25,16 @@ const initial: TimelineState = {
 let socket: TimelineSocket
 let root: Root
 let dispatch: ActionDispatch<[ModelAction]>
+let setPaused: Dispatch<SetStateAction<boolean>>
 
 function Harness() {
   const [model, d] = useReducer(modelReducer, initial)
+  const [paused, p] = useState(false)
   useEffect(() => {
     dispatch = d
-  }, [d])
-  useBackendSync(model, socket)
+    setPaused = p
+  }, [d, p])
+  useBackendSync(model, socket, paused)
   return null
 }
 
@@ -126,6 +129,35 @@ describe('useBackendSync', () => {
     edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 120 })
     edit({ type: 'addTrack', track: { name: 'Bass', color: '#00ff00', bpm: 128 } })
     expect(ws.sent.map((m) => m.type)).toEqual(['patch', 'addTrack'])
+  })
+
+  it('sends nothing while paused (dragging), then one patch with the final values on resume', () => {
+    const ws = mount()
+    act(() => setPaused(true))
+    edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 110 })
+    edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 130 })
+    edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 120 })
+    expect(ws.sent).toEqual([])
+    act(() => setPaused(false))
+    vi.advanceTimersByTime(30)
+    expect(ws.sent).toEqual([{ type: 'patch', trackId: 'a', from: 3, bpms: [110, 120, 110], length: 9 }])
+  })
+
+  it('a paused drag that ends where it started sends nothing', () => {
+    const ws = mount()
+    act(() => setPaused(true))
+    edit({ type: 'shiftLine', trackId: 'b', base: initial.tracks.b.bpms, delta: 4 })
+    edit({ type: 'shiftLine', trackId: 'b', base: initial.tracks.b.bpms, delta: 0 })
+    act(() => setPaused(false))
+    vi.advanceTimersByTime(30)
+    expect(ws.sent).toEqual([])
+  })
+
+  it('keeps socket.latest current while paused', () => {
+    mount()
+    act(() => setPaused(true))
+    edit({ type: 'shiftLine', trackId: 'b', base: initial.tracks.b.bpms, delta: 2 })
+    expect(socket.latest?.tracks.b.bpms).toEqual(flat(9, 92))
   })
 
   it('keeps socket.latest current for the reconnect snapshot', () => {

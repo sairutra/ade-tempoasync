@@ -5,7 +5,7 @@ import { TrackLine } from './TrackLine'
 
 const track: Track = { id: 'a', name: 'Lead', bpms: [120, 250, 100], nodes: [0, 1, 2], sourceOffset: 0, color: '#123456' }
 const noop = () => {}
-const props = { track, projectBpm: 120, bpmMin: 60, bpmMax: 200, contentEndStep: 32, onAddNode: noop, onSetNodeBpm: noop, onRemoveNode: noop, onMoveNode: noop, onShiftLine: noop }
+const props = { track, projectBpm: 120, bpmMin: 60, bpmMax: 200, contentEndStep: 32, onAddNode: noop, onSetNodeBpm: noop, onRemoveNode: noop, onMoveNode: noop, onShiftLine: noop, onDragStart: noop, onDragEnd: noop }
 const render = (pxPerSecond: number) => renderToStaticMarkup(<TrackLine {...props} pxPerSecond={pxPerSecond} />)
 
 describe('TrackLine', () => {

@@ -162,6 +162,8 @@ export function Timeline() {
                   onRemoveNode={modelActions.removeNode}
                   onMoveNode={modelActions.moveNode}
                   onShiftLine={modelActions.shiftLine}
+                  onDragStart={modelActions.beginDrag}
+                  onDragEnd={modelActions.endDrag}
                 />
               ))}
             </div>

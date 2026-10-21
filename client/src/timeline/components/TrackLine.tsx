@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import { clampShift, nodeMoveRange, roundBpm, snapDragDelta } from '../model/nodes'
 import { bpmToFraction, clampBpm } from '../model/selectors'
 import { stepToTime, timeToStep } from '../model/tempo'
@@ -21,6 +21,9 @@ type Props = {
   onMoveNode: (trackId: string, fromStep: number, toStep: number) => void
   /** Sets the track's points to `base` moved by `delta` BPM. */
   onShiftLine: (trackId: string, base: readonly number[], delta: number) => void
+  /** Called once when a drag (node or whole line) begins and once when it ends. Must be stable. */
+  onDragStart: () => void
+  onDragEnd: () => void
 }
 
 /** Below this many pixels per step, node handles shrink so a dense curve stays readable. */
@@ -81,6 +84,8 @@ export const TrackLine = memo(function TrackLine({
   onRemoveNode,
   onMoveNode,
   onShiftLine,
+  onDragStart,
+  onDragEnd,
 }: Props) {
   const { bpms, nodes } = track
   const widthSteps = Math.max(bpms.length - 1, contentEndStep)
@@ -99,6 +104,14 @@ export const TrackLine = memo(function TrackLine({
   const labelTop = bpmToFraction(bpms[0], bpmMin, bpmMax) * 100
   const bpmAt = (index: number) => (index < bpms.length ? bpms[index] : bpms[bpms.length - 1])
 
+  // Unmounting mid-drag still ends it, so backend sync doesn't stay paused.
+  useEffect(
+    () => () => {
+      if (dragRef.current) onDragEnd()
+    },
+    [onDragEnd],
+  )
+
   const startDrag = (e: PointerEvent<Element>, index: number) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     // Out-of-range points are drawn clamped; dragging starts from where the handle is drawn.
@@ -113,12 +126,14 @@ export const TrackLine = memo(function TrackLine({
       axis: null,
       range: null,
     }
+    onDragStart()
     setDragStep(index)
   }
 
   const startShift = (e: PointerEvent<Element>) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = { kind: 'line', pointerId: e.pointerId, startY: e.clientY, base: bpms }
+    onDragStart()
     setShifting(true)
   }
 
@@ -192,6 +207,7 @@ export const TrackLine = memo(function TrackLine({
   const endDrag = (e: PointerEvent<Element>) => {
     if (dragRef.current?.pointerId !== e.pointerId) return
     dragRef.current = null
+    onDragEnd()
     setDragStep(null)
     setDragAxis(null)
     setShifting(false)

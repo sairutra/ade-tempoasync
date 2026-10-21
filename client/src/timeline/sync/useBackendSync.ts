@@ -25,18 +25,21 @@ export function sendModelChanges(prev: TimelineState, next: TimelineState, sink:
 }
 
 /**
- * Streams model edits to the backend. Compares each model with the previous one it saw; the
+ * Streams model edits to the backend. Compares each model with the last one it sent; the
  * initial model is not sent here, because the socket's snapshot on connect covers it.
+ * While `paused` (a drag is in progress) nothing is sent and the last sent model stays the baseline,
+ * so releasing the drag sends the whole gesture as one change.
  * StrictMode-safe: a re-run of the effect for the same model finds nothing changed.
  */
-export function useBackendSync(model: TimelineState, socket: BackendSink): void {
+export function useBackendSync(model: TimelineState, socket: BackendSink, paused = false): void {
   const prevRef = useRef(model)
   useEffect(() => {
     // The socket is an external object, not React state: keeping it current is this effect's job.
     // oxlint-disable-next-line react/immutability
     socket.latest = model
+    if (paused) return
     const prev = prevRef.current
     prevRef.current = model
     if (prev !== model) sendModelChanges(prev, model, socket)
-  }, [model, socket])
+  }, [model, socket, paused])
 }
