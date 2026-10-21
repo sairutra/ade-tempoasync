@@ -1,0 +1,27 @@
+doctype html
+html.
+	<body>
+		<button id="sendBtn">Send POST</button>
+		<pre id="output"></pre>
+
+	<script>
+		const URL = "https://localhost:3000/seq"; // replace with your endpoint
+		
+		document.getElementById("sendBtn").addEventListener("click", async () => {
+			const output = document.getElementById("output");
+			output.textContent = "Sending...";
+			
+			try {
+				const res = await fetch(URL, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ message: "hello", sentAt: new Date().toISOString() }),
+					});
+					const text = await res.text();
+					output.textContent = `Status: ${res.status}\n\n${text}`;
+					} catch (err) {
+						output.textContent = `Error: ${err.message}`;
+						}
+		});
+		</script>
+	</body>
