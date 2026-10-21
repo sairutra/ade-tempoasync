@@ -13,18 +13,19 @@ npm run build   # tsc -b && vite build
 
 **Tracks are BPM curves.** x is an integer step (one 16th note at `projectBpm`), y is BPM.
 Each track has exactly one point per step, with no gaps and never two points on one step. That is
-stored as a start plus a dense array, so the invariant can't be broken by construction:
+stored as a dense array from step 0, so the invariant can't be broken by construction, and every
+line starts at the first step of the timeline:
 
 ```ts
-type Track = { id; name; startStep: number; bpms: number[]; sourceOffset; color? }
-// bpms[i] is the BPM at step startStep + i; bpms.length >= 1
+type Track = { id; name; bpms: number[]; nodes: number[]; sourceOffset; color? }
+// bpms[i] is the BPM at step i; bpms.length >= 1
 ```
 
-Points are joined by straight segments. Nothing is drawn before `startStep`; after the last point
-the line holds the last BPM to the right edge of the content. There are no per-track lane rows:
+Points are joined by straight segments. After the last point the line holds the last BPM to the
+end of the timeline, so every line spans the whole timeline with no gaps. There are no per-track lane rows:
 every line shares the lane area's BPM axis, `TimelineState.bpmMin`–`bpmMax` (mock: 60–200), with
 higher BPM drawn higher. Out-of-range values stay in the model as-is and are clamped only when
-drawn (`clampBpm`). The header column is ordered by `startStep`, then name, then id
+drawn (`clampBpm`). The header column is ordered by name, then id
 (`compareTracks` in `selectors.ts`), so header order is derived, not stored.
 
 The timeline duration is `stepToTime(furthest last point over all tracks) + 2 s` of padding.
@@ -43,7 +44,7 @@ src/timeline/
   state/      TimelineProvider.tsx     – React wiring: model, viewport and transport-clock contexts
   components/ Timeline, Ruler, GridCanvas, TrackHeader, TrackLine, Scrollbar, TransportBar,
               Playhead, useCanvas, useWheelZoomScroll
-  mock/       mockTimeline.ts          – 5 BPM curves over ~30 bars at 120 BPM, one start-step tie
+  mock/       mockTimeline.ts          – 5 BPM curves over ~30 bars at 120 BPM, all starting at step 0
 ```
 
 **Steps and BPM, not pixels.** The model stores steps and BPM; the viewport works in seconds
@@ -55,16 +56,15 @@ timeToX(t, v) = t * v.pxPerSecond - v.scrollX
 xToTime(x, v) = (x + v.scrollX) / v.pxPerSecond
 ```
 
-For performance, lines apply the two halves separately: each line is placed at
-`timeToContentX(stepToTime(startStep, bpm), pxPerSecond)` and the lane content layer is translated
-by `-scrollX`. The result is exactly `timeToX`, but scrolling only changes one transform, and
+For performance, lines apply the two halves separately: every line starts at content x = 0 (step
+0), and the lane content layer is translated by `-scrollX`. The result is exactly `timeToX`, but scrolling only changes one transform, and
 memoized `TrackLine`s re-render only when zoom changes.
 
-**One SVG per track.** `TrackLine` renders an `<svg>` from the track's first point to the content
-end. Its viewBox is in model units — x in steps since `startStep`, y = `bpmMax - bpm`, height
+**One SVG per track.** `TrackLine` renders an `<svg>` from step 0 to the timeline end. Its viewBox
+is in model units — x in steps, y = `bpmMax - bpm`, height
 `bpmMax - bpmMin` — with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"` on
 the path. Zooming only changes the svg's CSS width; the path (`M` first point, `L` through each
-point, `H` to the content end) is rebuilt only when `bpms`, the BPM range or the content end
+point, `H` to the timeline end) is rebuilt only when `bpms`, the BPM range or the timeline end
 change. The name label sits just above the first point.
 
 **Musical time on the ruler.** `TimelineState.projectBpm` (mock: 120) drives the ruler and grid.
