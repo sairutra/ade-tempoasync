@@ -13,8 +13,11 @@ class Channel {
 
 	setBPMvalues(values) {
 		if (values) {
-			console.log("Tried to set BPM to negative value for channel " + this.channel);
 			this.BPMvalues = values;
+		} else {
+			console.error("setBPMvalues method called for channel " + this.id + " with empty array");
 		};
 	}
 }
+
+module.exports = Channel;

@@ -20,7 +20,6 @@ router.get('/test', (req, res) => {
 })
 
 router.post('/seq', (req, res) => {
-	// console.log(req.body);
 	console.log(req.body.sequence)
 	res.send("yo");
 })

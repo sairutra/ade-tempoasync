@@ -3,11 +3,21 @@ var express = require("express");
 var path = require("path");
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
+var projectClass = require("./projectClass/project.js")
 
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 
 var app = express();
+const project = new projectClass;
+project.addChannel("momo", 1);
+project.addChannel("a", 2);
+project.addChannel("b", 3);
+project.addChannel("c", 88);
+project.printChannels();
+project.channels.get("momo").setBPMvalues([0, 1]);
+project.addChannel("aaaa", 8118);
+project.printChannels();
 
 // view engine setup
 app.set("views", path.join(__dirname, "views"));
