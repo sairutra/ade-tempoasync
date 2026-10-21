@@ -41,8 +41,11 @@ router.post('/message', (req, res) => {
   let bpm = req.body.bpm;
 
   req.app.locals.project.addChannel("momo", 1, [0, 1, 1]);
-  req.app.locals.project.channels.get("momo").c
-  const msg = createMessage(note, bpm);
+  const msg = req.app.locals.project.channels.get("momo").createMessage(note, bpm);
+  const midi = req.app.locals.midiAccess;
   console.log(msg);
+  console.log(midi);
+
+  msg.sendMessage(midi, 'Renoise MIDI-In');
   res.send(":)");
 })

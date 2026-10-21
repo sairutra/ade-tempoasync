@@ -1,16 +1,17 @@
 class Message {
 	constructor(note, BPM) {
-		this.noteOnMessage = [0x9n, note];
-		this.noteOffMessage = [0x8n, note, performance.now() + (60000/BPM)/4];
+		this.noteOnMessage = [0x96, note, 0x7f];
+		this.noteOffMessage = [0x86, note, 0x7f];
+		this.time =  performance.now() + (60000/BPM)/4;
 	}
 
-	sendMessage(midiAcces, portID) {
-		const output = midiAcces.outputs.get(portID);
+	sendMessage(midiAccess, portID) {
+		const output = midiAccess.outputs.get(portID);
 		output.send(this.noteOnMessage);
-		output.send(this.noteOffMessage);
+		output.send(this.noteOffMessage, this.time);
 	}
 
 }
 
 
-module.exports = { Message };
+module.exports = Message;

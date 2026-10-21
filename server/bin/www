@@ -92,6 +92,7 @@ function onListening() {
     console.log("MIDI ready!");
     midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
     listInputsAndOutputs(midiAccess);
+    app.locals.midiAccess = midiAccess;
   }
   function listInputsAndOutputs(midiAccess) {
     console.log("inputs!");
