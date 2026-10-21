@@ -1,6 +1,8 @@
 var express = require('express');
 var router = express.Router();
 var DoublyLinkedList = require('../utils/linked_list.js');
+var Message = require('../utils/message.js');
+const { createMessage } = require('../utils/message.js');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -24,4 +26,13 @@ router.get('/test', (req, res) => {
 router.post('/seq', (req, res) => {
 	console.log(req.body.sequence)
 	res.send("yo");
+})
+
+router.post('/message', (req, res) => {
+  let note = req.body.note;
+  let bpm = req.body.bpm;
+
+  const msg = createMessage(note, bpm);
+  console.log(msg);
+  res.send(":)");
 })
