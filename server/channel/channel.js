@@ -1,3 +1,5 @@
+var Message = require('../utils/message.js');
+
 class Channel {
 	constructor(channel) {
 		this.id = channel;
@@ -17,6 +19,13 @@ class Channel {
 		} else {
 			console.error("setBPMvalues method called for channel " + this.id + " with empty array");
 		};
+	}
+
+	createMessage(node) {
+		msg = new Message();
+		msg.noteOnMessage = [0x90 + this.id, 60, 0x7f];
+		msg.noteOnMessage = [0x80 + this.id, 60, 0x7f];
+		return msg;
 	}
 }
 
