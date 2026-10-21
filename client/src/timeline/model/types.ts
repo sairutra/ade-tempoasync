@@ -20,4 +20,6 @@ export type Track = {
 /** Tracks by id. Display order is derived (see getOrderedTracks), not stored. */
 export type TimelineState = {
   tracks: Record<string, Track>
+  /** Project tempo in beats per minute; the ruler and grid derive bars/beats/16ths from it. */
+  projectBpm: number
 }

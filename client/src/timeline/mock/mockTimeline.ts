@@ -7,4 +7,4 @@ export const mockTimeline = createTimelineState([
   { id: 'bass', name: 'Bass', start: 8, duration: 44.5, sourceOffset: 0, y: 0.3, color: '#3d85c6' },
   { id: 'vox', name: 'Vocals', start: 16, duration: 17.4, sourceOffset: 0, y: 0.55, color: '#c48bd6' },
   { id: 'gtr', name: 'Guitar', start: 16, duration: 28, sourceOffset: 0, y: 0.9, color: '#f2cc8f' },
-])
+], 120)

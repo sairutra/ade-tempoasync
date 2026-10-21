@@ -44,10 +44,10 @@ export function Timeline() {
         <button type="button" onClick={() => zoomCentered(ZOOM_STEP)} aria-label="Zoom in">+</button>
         <button type="button" onClick={actions.zoomToFit}>Fit</button>
       </div>
-      <Ruler viewport={viewport} />
+      <Ruler viewport={viewport} bpm={model.projectBpm} />
 
       <div className="tl-body-wrap">
-        <GridCanvas viewport={viewport} />
+        <GridCanvas viewport={viewport} bpm={model.projectBpm} />
         <div ref={bodyRef} className="tl-body">
           <div className="tl-headers">
             {tracks.map((track) => (

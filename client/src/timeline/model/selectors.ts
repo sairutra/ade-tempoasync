@@ -1,3 +1,4 @@
+import { DEFAULT_BPM } from './tempo'
 import type { Track, TimelineState } from './types'
 
 /** Empty space kept after the last line so it isn't flush with the right edge. */
@@ -29,8 +30,9 @@ export function getTimelineDuration(state: TimelineState): number {
 }
 
 /** Builds normalized state from a flat list; y is clamped to [0, 1]. */
-export function createTimelineState(tracks: Track[]): TimelineState {
-  const state: TimelineState = { tracks: {} }
+export function createTimelineState(tracks: Track[], projectBpm = DEFAULT_BPM): TimelineState {
+  if (!(projectBpm > 0)) throw new Error(`Invalid BPM ${projectBpm}`)
+  const state: TimelineState = { tracks: {}, projectBpm }
   for (const t of tracks) {
     if (state.tracks[t.id]) throw new Error(`Duplicate track id ${t.id}`)
     state.tracks[t.id] = { ...t, y: Math.min(1, Math.max(0, t.y)) }

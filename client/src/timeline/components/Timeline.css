@@ -7,8 +7,13 @@
   --tl-border: #3a3d45;
   --tl-text: #d7d9de;
   --tl-ruler-tick: #8b8f99;
-  --tl-grid-major: rgba(255, 255, 255, 0.12);
-  --tl-grid-minor: rgba(255, 255, 255, 0.04);
+  /* Tick hierarchy: bars brightest, beats medium, 16th steps faintest. */
+  --tl-ruler-bar: #c3c6cd;
+  --tl-ruler-beat: #80848e;
+  --tl-ruler-step: #565a63;
+  --tl-grid-bar: rgba(255, 255, 255, 0.16);
+  --tl-grid-beat: rgba(255, 255, 255, 0.07);
+  --tl-grid-step: rgba(255, 255, 255, 0.03);
   --tl-line-default: #7a7f8c;
   --tl-font: system-ui, 'Segoe UI', Roboto, sans-serif;
 
