@@ -101,8 +101,9 @@ export class TimelineSocket {
     for (const [trackId, { bpms, from, to }] of this.pending) {
       // An earlier patch in the union may have covered a longer line than the latest one.
       const end = Math.min(to, bpms.length)
-      // `length` lets the server drop steps past the end when the line got shorter.
-      if (end > from) this.send({ type: 'patch', trackId, from, bpms: bpms.slice(from, end), length: bpms.length })
+      const start = Math.min(from, end)
+      // An empty range is still sent: it means the line was only cut short to `lineLength`.
+      this.send({ type: 'patch', trackId, from: start, to: end, bpms: bpms.slice(start, end), lineLength: bpms.length })
     }
     this.pending.clear()
   }

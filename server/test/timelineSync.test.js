@@ -21,9 +21,14 @@ test("parseMessage rejects malformed messages", () => {
     "not json",
     "[]",
     JSON.stringify({ type: "nope" }),
-    JSON.stringify({ type: "patch", trackId: "a", from: -1, bpms: [100] }),
-    JSON.stringify({ type: "patch", trackId: "a", from: 0, bpms: [100, "x"] }),
-    JSON.stringify({ type: "patch", trackId: "", from: 0, bpms: [100] }),
+    JSON.stringify({ type: "patch", trackId: "a", from: -1, to: 0, bpms: [100], lineLength: 1 }),
+    JSON.stringify({ type: "patch", trackId: "a", from: 0, to: 2, bpms: [100, "x"], lineLength: 2 }),
+    JSON.stringify({ type: "patch", trackId: "a", from: 0, bpms: [100], lineLength: 1 }), // no to
+    JSON.stringify({ type: "patch", trackId: "a", from: 0, to: 1, bpms: [100] }), // no lineLength
+    JSON.stringify({ type: "patch", trackId: "a", from: 2, to: 1, bpms: [], lineLength: 3 }), // to < from
+    JSON.stringify({ type: "patch", trackId: "a", from: 0, to: 2, bpms: [100], lineLength: 3 }), // bpms vs range
+    JSON.stringify({ type: "patch", trackId: "a", from: 0, to: 3, bpms: [1, 1, 1], lineLength: 2 }), // past the end
+    JSON.stringify({ type: "patch", trackId: "", from: 0, to: 1, bpms: [100], lineLength: 1 }),
     JSON.stringify({ type: "projectBpm", bpm: 0 }),
     JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: 0 }),
     JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: 17 }),
@@ -36,31 +41,40 @@ test("parseMessage rejects malformed messages", () => {
   }
 });
 
-test("patch replaces bpms[from .. from + n) and reports the changed range", () => {
+test("patch replaces steps [from, to) and reports that range", () => {
   const store = storeWith({ a: [100, 100, 100, 100, 100] });
   const events = [];
   store.on("track", (id, bpms, range) => events.push([id, bpms.slice(), range]));
-  apply(store, { type: "patch", trackId: "a", from: 1, bpms: [110, 120, 110] });
+  apply(store, { type: "patch", trackId: "a", from: 1, to: 4, bpms: [110, 120, 110], lineLength: 5 });
   assert.deepEqual(store.tracks.get("a"), [100, 110, 120, 110, 100]);
   assert.deepEqual(events, [["a", [100, 110, 120, 110, 100], { from: 1, to: 4 }]]);
 });
 
 test("patch can lengthen a line from its end", () => {
   const store = storeWith({ a: [100, 100] });
-  apply(store, { type: "patch", trackId: "a", from: 0, bpms: [100, 100, 105, 110] });
+  apply(store, { type: "patch", trackId: "a", from: 2, to: 4, bpms: [105, 110], lineLength: 4 });
   assert.deepEqual(store.tracks.get("a"), [100, 100, 105, 110]);
 });
 
-test("patch with length shortens the line", () => {
+test("patch with a smaller lineLength cuts the line, reporting only the changed segment", () => {
   const store = storeWith({ a: [100, 105, 110, 115, 120] });
-  apply(store, { type: "patch", trackId: "a", from: 0, bpms: [100, 110, 120], length: 3 });
-  assert.deepEqual(store.tracks.get("a"), [100, 110, 120]);
+  const events = [];
+  store.on("track", (id, bpms, range) => events.push([bpms.slice(), range]));
+  // Last node moved from step 4 back to step 3: only the segment after the previous node (step 1) changes.
+  apply(store, { type: "patch", trackId: "a", from: 2, to: 4, bpms: [113, 120], lineLength: 4 });
+  assert.deepEqual(store.tracks.get("a"), [100, 105, 113, 120]);
+  assert.deepEqual(events, [[[100, 105, 113, 120], { from: 2, to: 4 }]]);
+  // Cut only (empty range).
+  apply(store, { type: "patch", trackId: "a", from: 2, to: 2, bpms: [], lineLength: 2 });
+  assert.deepEqual(store.tracks.get("a"), [100, 105]);
 });
 
 test("patch errors leave the store unchanged", () => {
   const store = storeWith({ a: [100, 100] });
-  assert.throws(() => apply(store, { type: "patch", trackId: "b", from: 0, bpms: [1] }), ProtocolError);
-  assert.throws(() => apply(store, { type: "patch", trackId: "a", from: 3, bpms: [1] }), ProtocolError);
+  assert.throws(() => apply(store, { type: "patch", trackId: "b", from: 0, to: 1, bpms: [1], lineLength: 2 }), ProtocolError);
+  assert.throws(() => apply(store, { type: "patch", trackId: "a", from: 3, to: 4, bpms: [1], lineLength: 4 }), ProtocolError);
+  // Changes the length but stops short of the new end: steps 1..3 would be undefined.
+  assert.throws(() => apply(store, { type: "patch", trackId: "a", from: 0, to: 1, bpms: [1], lineLength: 4 }), ProtocolError);
   assert.deepEqual(store.tracks.get("a"), [100, 100]);
 });
 
@@ -83,7 +97,7 @@ test("channel numbers are stored from addTrack and snapshot and survive patches"
   const events = [];
   store.on("track", (id, _bpms, _range, channel) => events.push([id, channel]));
   apply(store, { type: "addTrack", id: "b", bpms: [90, 90], channel: 16 });
-  apply(store, { type: "patch", trackId: "b", from: 0, bpms: [95] });
+  apply(store, { type: "patch", trackId: "b", from: 0, to: 1, bpms: [95], lineLength: 2 });
   assert.deepEqual(events, [["b", 16], ["b", 16]]);
   assert.deepEqual(store.toJSON().tracks, [
     { id: "a", bpms: [100] },
@@ -110,13 +124,13 @@ test("WebSocket on /ws applies client messages and answers bad ones with an erro
 
   const patched = once(store, "track");
   ws.send(JSON.stringify({ type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [100, 100, 100] }] }));
-  ws.send(JSON.stringify({ type: "patch", trackId: "a", from: 2, bpms: [130] }));
+  ws.send(JSON.stringify({ type: "patch", trackId: "a", from: 2, to: 3, bpms: [130], lineLength: 3 }));
   const [id, bpms, range] = await patched;
   assert.equal(id, "a");
   assert.deepEqual(bpms, [100, 100, 130]);
   assert.deepEqual(range, { from: 2, to: 3 });
 
-  ws.send(JSON.stringify({ type: "patch", trackId: "missing", from: 0, bpms: [1] }));
+  ws.send(JSON.stringify({ type: "patch", trackId: "missing", from: 0, to: 1, bpms: [1], lineLength: 1 }));
   const [reply] = await once(ws, "message");
   assert.equal(JSON.parse(reply.toString()).type, "error");
   assert.deepEqual(store.tracks.get("a"), [100, 100, 130]);

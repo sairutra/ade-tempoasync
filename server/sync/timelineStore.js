@@ -7,7 +7,8 @@ const { ProtocolError } = require("./messages");
  *
  * Emits after every applied message:
  *   'snapshot'   (store)
- *   'track'      (trackId, bpms, { from, to }, channel) — a track was added or edited; [from, to) changed
+ *   'track'      (trackId, bpms, { from, to }, channel) — a track was added or edited; [from, to) changed.
+ *                A patch may also have cut the line short: bpms.length is the new length.
  *   'projectBpm' (bpm)
  * Playback can subscribe to these instead of reading WebSocket messages itself.
  */
@@ -48,24 +49,24 @@ class TimelineStore extends EventEmitter {
   }
 
   /**
-   * Replaces bpms[from .. from + patch.length). A patch may start at most at the current end (it
-   * can lengthen the line, never leave a gap). With `length`, the line is then cut or held at its
-   * last BPM to exactly that many steps.
+   * Replaces steps [from, to) with `values`, then cuts the line to `lineLength` steps. A patch
+   * never leaves a gap: `from` is at most the current length, and a patch that changes the length
+   * must run to the new end (to === lineLength), so every step below lineLength is defined.
    */
-  applyPatch({ trackId, from, bpms: values, length }) {
+  applyPatch({ trackId, from, to, bpms: values, lineLength }) {
     const bpms = this.tracks.get(trackId);
     if (!bpms) throw new ProtocolError(`patch: unknown track ${trackId}`);
     if (from > bpms.length) {
       throw new ProtocolError(`patch: from ${from} is past the end of track ${trackId} (${bpms.length} steps)`);
     }
-    for (let i = 0; i < values.length; i++) bpms[from + i] = values[i];
-    let to = from + values.length;
-    if (length !== undefined) {
-      if (length < bpms.length) bpms.length = length;
-      while (bpms.length < length) bpms.push(bpms[bpms.length - 1]);
-      to = Math.min(Math.max(to, length), bpms.length);
+    if (lineLength !== bpms.length && to !== lineLength) {
+      throw new ProtocolError(
+        `patch: track ${trackId} changes length ${bpms.length} -> ${lineLength}, so to must be ${lineLength} (got ${to})`,
+      );
     }
-    this.emit("track", trackId, bpms, { from: Math.min(from, bpms.length), to }, this.channels.get(trackId));
+    for (let i = 0; i < values.length; i++) bpms[from + i] = values[i];
+    bpms.length = lineLength;
+    this.emit("track", trackId, bpms, { from, to }, this.channels.get(trackId));
   }
 
   toJSON() {

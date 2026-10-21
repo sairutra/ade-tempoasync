@@ -4,7 +4,9 @@
  *
  *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel? }] }
  *   { type: 'addTrack', id, bpms, channel? }        // channel: integer 1–16
- *   { type: 'patch', trackId, from, bpms, length? } // replaces bpms[from .. from + bpms.length), then sets the line to `length` steps
+ *   { type: 'patch', trackId, from, to, bpms, lineLength }
+ *       // steps [from, to) changed to `bpms` (bpms.length === to - from); the line is then
+ *       // `lineLength` steps long. If lineLength differs from the current length, to === lineLength.
  *   { type: 'projectBpm', bpm }
  *
  * parseMessage() returns the validated message or throws a ProtocolError. It checks shape only;
@@ -83,10 +85,15 @@ function parseMessage(raw) {
     case "patch":
       if (!isId(msg.trackId)) throw new ProtocolError("patch: trackId must be a non-empty string");
       if (!isIndex(msg.from)) throw new ProtocolError("patch: from must be a non-negative integer");
+      if (!isIndex(msg.to) || msg.to < msg.from) throw new ProtocolError("patch: to must be an integer >= from");
       checkBpms(msg.bpms, `patch ${msg.trackId}`, { allowEmpty: true });
-      if (msg.length !== undefined && !(isIndex(msg.length) && msg.length > 0)) {
-        throw new ProtocolError("patch: length must be a positive integer");
+      if (msg.bpms.length !== msg.to - msg.from) {
+        throw new ProtocolError(`patch: bpms has ${msg.bpms.length} values for range [${msg.from}, ${msg.to})`);
       }
+      if (!(isIndex(msg.lineLength) && msg.lineLength > 0)) {
+        throw new ProtocolError("patch: lineLength must be a positive integer");
+      }
+      if (msg.to > msg.lineLength) throw new ProtocolError("patch: to must not be past lineLength");
       return msg;
     case "projectBpm":
       if (!isBpm(msg.bpm)) throw new ProtocolError("projectBpm: bpm must be a positive number");

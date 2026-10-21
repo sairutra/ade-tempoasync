@@ -76,7 +76,7 @@ function describe(msg) {
     case "addTrack":
       return `${msg.id} (${msg.bpms.length} steps${msg.channel === undefined ? "" : `, channel ${msg.channel}`})`;
     case "patch":
-      return `${msg.trackId} [${msg.from}, ${msg.from + msg.bpms.length})`;
+      return `${msg.trackId} [${msg.from}, ${msg.to}) of ${msg.lineLength} steps`;
     case "projectBpm":
       return String(msg.bpm);
   }

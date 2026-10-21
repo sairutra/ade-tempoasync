@@ -21,8 +21,13 @@ describe('changedRange', () => {
     expect(changedRange([1, 2, 3], [9, 2, 9])).toEqual({ from: 0, to: 3 })
   })
 
-  it('returns the whole new array when the length changes', () => {
-    expect(changedRange([1, 2, 3], [1, 2, 3, 3, 3])).toEqual({ from: 0, to: 5 })
-    expect(changedRange([1, 2, 3, 4], [1, 2])).toEqual({ from: 0, to: 2 })
+  it('runs from the first difference to the new end when the length changes', () => {
+    expect(changedRange([1, 2, 3], [1, 2, 3, 3, 3])).toEqual({ from: 3, to: 5 })
+    expect(changedRange([1, 2, 3, 4, 5], [1, 2, 9, 9])).toEqual({ from: 2, to: 4 })
+    expect(changedRange([1, 2, 3], [9, 2, 3, 3])).toEqual({ from: 0, to: 4 })
+  })
+
+  it('is an empty, non-null range when the line is only cut short', () => {
+    expect(changedRange([1, 2, 3, 4], [1, 2])).toEqual({ from: 2, to: 2 })
   })
 })
