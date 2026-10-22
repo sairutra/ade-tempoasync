@@ -7,6 +7,7 @@ var projectClass = require("./projectClass/project.js")
 
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
+var sequenceRouter = require("./routes/sequence");
 
 var app = express();
 // creating a Project object
@@ -30,6 +31,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
 app.use("/users", usersRouter);
+app.use("/sequence", sequenceRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

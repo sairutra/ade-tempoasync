@@ -1,4 +1,5 @@
 var Message = require('../utils/message.js');
+var SequencePlayer = require('../sequence/sequencePlayer.js');
 
 class Channel {
 	constructor(channel, BPMvalues, midiAccess, Port) {
@@ -8,7 +9,7 @@ class Channel {
 		this.midiAccess = midiAccess;
 		this.Port = Port;
 		this.message = null;
-		this.run = false;
+		this.player = new SequencePlayer();
 	}
 
 	setSequence(sequence) {
@@ -33,33 +34,34 @@ class Channel {
 		console.log("New BPMvalues: " + this.BPMvalues);
 	}
 
-	playSequence() {
-		const noteList = arrayToList(this.sequence);
-		const headNode = noteList;
-		let i = 0;
-		this.run = true;
-
-		while (this.run)
-		{
-			this.createMessage(noteList.data, this.BPMvalues[i]);
-			this.sendMessage()
-			noteList = noteList.next;
-			i++;
-			if (!noteList.next)
-			{
-				noteList = headNode;
-			}
-			if (i > this.BPMvalues.length())
-			{
-				this.run = false;
-				i = 0;
-				noteList = headNode;
-			}
-		}
-    
-
+	// One step per BPM value (a single pass); notes cycle through this.sequence,
+	// -1 is a rest. Each step lasts one 16th note at its own BPM.
+	// Steps are built when playback starts, so BPM changes made during playback
+	// apply to the next play(), not the one already running.
+	buildSteps() {
+		return this.BPMvalues.map((bpm, i) => {
+			const note = this.sequence[i % this.sequence.length];
+			return {
+				delayMs: 60000 / bpm / 4,
+				action: async () => {
+					if (note === -1) return;
+					new Message(note, bpm, this.midiAccess, this.Port).sendMessage();
+				},
+			};
+		});
 	}
 
+	play() {
+		this.player.start(this.buildSteps());
+	}
+
+	stop() {
+		this.player.stop();
+	}
+
+	get isPlaying() {
+		return this.player.isPlaying;
+	}
 
 	createMessage(note, BPM) {
 		this.message = new Message(note, BPM, this.midiAccess, this.Port);

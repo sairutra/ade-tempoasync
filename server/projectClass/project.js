@@ -27,7 +27,7 @@ class Project {
 			console.error("Max channel capacity of 4 already reached");
 			return ;
 		}
-		this.channels.set(name, new Channel(id, BPMvalue, this.MidiAccess, this.Port));
+		this.channels.set(name, new Channel(id, BPMvalues, this.MidiAccess, this.Port));
 	}
 
 	printChannels() {
