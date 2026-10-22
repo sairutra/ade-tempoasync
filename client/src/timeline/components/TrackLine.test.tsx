@@ -40,3 +40,44 @@ describe('TrackLine', () => {
     expect(nodes[2]).toMatch(/left:25px;top:71\.42/)
   })
 })
+
+describe('TrackLine in sync view', () => {
+  const flat = (bpm: number, steps: number): Track => ({
+    id: 'f',
+    name: 'Flat',
+    bpms: new Array<number>(steps).fill(bpm),
+    nodes: [0, steps - 1],
+    sourceOffset: 0,
+  })
+  const renderSync = (t: Track, pxPerSecond = 100) =>
+    renderToStaticMarkup(<TrackLine {...props} track={t} pxPerSecond={pxPerSecond} syncView />)
+  const strip = (html: string) => html.replace(/<span class="tl-line-tick"[^>]*><\/span>/g, '')
+
+  it('draws a line at the project tempo exactly as the step view does', () => {
+    const t = flat(120, 17)
+    const step = renderToStaticMarkup(<TrackLine {...props} track={t} pxPerSecond={100} />)
+    expect(strip(renderSync(t))).toBe(step)
+  })
+
+  it('places a 90 BPM line at its real onsets', () => {
+    const html = renderSync(flat(90, 17))
+    // step 16 sounds at 8/3 s = 21.333 project steps at 120 BPM
+    expect(html).toContain('d="M0 110 L1.3333 110')
+    expect(html).toContain('L21.3333 110 H32"')
+    const nodes = [...html.matchAll(/class="tl-node"[^>]*style="([^"]*)"/g)].map((m) => m[1])
+    expect(nodes[1]).toMatch(/left:266\.66/) // 8/3 s at 100 px/s
+  })
+
+  it('ticks beats and marks downbeats on project bars as in sync', () => {
+    const html = renderSync(flat(90, 1), 100) // 32 project steps = 4 s
+    const ticks = [...html.matchAll(/class="tl-line-tick"([^>]*)/g)].map((m) => m[1])
+    // beats every 2/3 s up to 4 s: 0, 0.67 … 4 → 7 ticks; downbeats at 0 and 2.67
+    expect(ticks).toHaveLength(7)
+    expect(ticks.filter((t) => t.includes('data-level="bar"'))).toHaveLength(2)
+    expect(ticks.filter((t) => t.includes('data-sync'))).toHaveLength(1) // only step 0
+  })
+
+  it('draws no ticks in the step view', () => {
+    expect(render(100)).not.toContain('tl-line-tick')
+  })
+})

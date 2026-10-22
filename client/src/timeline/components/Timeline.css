@@ -17,6 +17,9 @@
   --tl-grid-step: rgba(255, 255, 255, 0.03);
   --tl-line-default: #7a7f8c;
   --tl-playhead: #ff6b5e;
+  /* Sync view: a line downbeat on a project bar line, and the selected line's downbeat guides. */
+  --tl-sync: #7ee08a;
+  --tl-guide: rgba(255, 255, 255, 0.22);
   --tl-font: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   display: flex;
@@ -96,6 +99,26 @@
 .tl-transport-bpm {
   margin-left: auto;
   color: var(--tl-ruler-bar);
+}
+
+.tl-transport-view {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-transport-view:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-transport-view[aria-pressed='true'] {
+  color: var(--tl-sync);
+  border-color: var(--tl-sync);
 }
 
 .tl-toolbar {
@@ -268,7 +291,7 @@
   font-weight: 600;
 }
 
-/* Channel number, pushed to the right edge of the header. */
+/* Channel number and edit button, pushed to the right edge of the header. */
 .tl-track-channel {
   flex: 0 0 auto;
   margin-left: auto;
@@ -278,6 +301,35 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
+}
+
+.tl-track-edit {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 1;
+  border: 1px solid var(--tl-border);
+  border-radius: 3px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* With no channel badge, the button takes the right edge itself. */
+.tl-track-name + .tl-track-edit {
+  margin-left: auto;
+}
+
+.tl-track-edit:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-track-edit:focus-visible {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: 1px;
 }
 
 .tl-lanes-content {
@@ -387,6 +439,36 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Sync view: selected line drawn heavier. */
+.tl-line[data-selected] path:not(.tl-line-hit) {
+  stroke-width: 3px;
+}
+
+/* Sync view: beat ticks centred on the line, taller on downbeats; a downbeat on a project bar is green. */
+.tl-line-tick {
+  position: absolute;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  transform: translateY(-50%);
+  background: var(--tl-line-color, var(--tl-line-default));
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.tl-line-tick[data-level='bar'] {
+  height: 16px;
+  opacity: 1;
+}
+
+.tl-line-tick[data-sync] {
+  width: 3px;
+  margin-left: -1.5px;
+  height: 22px;
+  background: var(--tl-sync);
+  box-shadow: 0 0 6px var(--tl-sync);
 }
 
 /* Sits just above the first point. */
@@ -597,4 +679,266 @@
 .tl-dialog-actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* MIDI sequence editor: 16 slots, 4 per row (one beat each). */
+.tl-sequence {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.tl-sequence > legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-sequence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tl-sequence-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tl-sequence-slot input[type='number'] {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 4px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* No spinners: they eat half of a narrow slot and push the value off-centre. */
+.tl-sequence-slot input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.tl-sequence-slot input[type='number']::-webkit-inner-spin-button,
+.tl-sequence-slot input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tl-sequence-note {
+  color: var(--tl-ruler-beat);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Read-only track data in the edit dialog. */
+.tl-track-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.tl-track-summary dt {
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-track-summary dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.tl-track-summary .tl-color-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* Straight line / generate pattern toggle, and the other radio groups of the pattern form. */
+.tl-dialog:has(.tl-pattern) {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.tl-dialog {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.tl-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--tl-bg);
+}
+
+.tl-segment {
+  flex: 1 1 0;
+  position: relative;
+  min-width: 0;
+}
+
+.tl-segment + .tl-segment {
+  border-left: 1px solid var(--tl-border);
+}
+
+/* The radio stays focusable and announced; the span is the visible button. */
+.tl-segment input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tl-segment span {
+  display: block;
+  padding: 5px 8px;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--tl-ruler-beat);
+}
+
+.tl-segment input:checked + span {
+  background: var(--tl-text);
+  color: var(--tl-bg);
+  font-weight: 600;
+}
+
+.tl-segment input:focus-visible + span {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: -2px;
+}
+
+.tl-pattern {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--tl-border);
+  border-radius: 6px;
+  min-width: 0;
+  gap: 10px;
+}
+
+.tl-pattern > legend {
+  padding: 0 4px;
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tl-field-row-center {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tl-subfield {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+}
+
+.tl-subfield input[type='number'],
+.tl-subfield select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  font: 13px var(--tl-font);
+  min-width: 0;
+}
+
+.tl-subfield input[type='range'] {
+  width: 100%;
+  accent-color: var(--tl-text);
+}
+
+.tl-inline-label {
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tl-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tl-check input {
+  margin: 1px 0 0;
+}
+
+.tl-btn-small {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-btn-small:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-split-rest {
+  flex: 1 1 0;
+  margin: 16px 0 0;
+  color: var(--tl-ruler-beat);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-split-rest strong {
+  color: var(--tl-text);
+}
+
+.tl-pattern-preview {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-pattern-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+}
+
+.tl-pattern-preview-sync {
+  stroke: var(--tl-ruler-beat);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tl-pattern-preview-window {
+  stroke: var(--tl-border);
+  stroke-width: 1;
 }

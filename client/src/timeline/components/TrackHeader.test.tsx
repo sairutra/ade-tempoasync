@@ -27,4 +27,11 @@ describe('TrackHeader', () => {
     expect(html).not.toContain('--tl-line-color')
     expect(html).toContain('class="tl-track-swatch"')
   })
+
+  it('shows an edit button only when onEdit is given', () => {
+    expect(renderToStaticMarkup(<TrackHeader track={track} />)).not.toContain('tl-track-edit')
+    const html = renderToStaticMarkup(<TrackHeader track={track} onEdit={() => {}} />)
+    expect(html).toContain('class="tl-track-edit"')
+    expect(html).toContain('aria-label="Edit Lead"')
+  })
 })

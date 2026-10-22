@@ -8,13 +8,14 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
-import { modelReducer } from '../model/editReducer'
+import { modelReducer, type TrackEdit } from '../model/editReducer'
 import type { NewTrackInput } from '../model/newTrack'
 import { createEmptyTimelineState, getTimelineDuration } from '../model/selectors'
 import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
 import { TransportClock } from '../playback/transportClock'
 import { TimelineSocket } from '../sync/socket'
+import { syncTransport } from '../sync/transportSync'
 import { useBackendSync } from '../sync/useBackendSync'
 import { initViewportState, viewportReducer, type ViewportState } from '../viewport/viewportReducer'
 
@@ -50,6 +51,8 @@ export type ModelActions = {
   shiftLine: (trackId: string, base: readonly number[], delta: number) => void
   /** Adds a flat line; a colour already in use is shifted to a distinct shade. */
   addTrack: (track: NewTrackInput) => void
+  /** Changes a track's editable data (for now its MIDI sequence); sent to the backend right away. */
+  editTrack: (trackId: string, changes: TrackEdit) => void
   /** Sets the lane area's BPM range; `edited` is the end the user changed (it wins on conflicts). */
   setBpmRange: (bpmMin: number, bpmMax: number, edited?: 'min' | 'max') => void
   /** Brackets a drag: edits in between are sent to the backend once, when the last drag ends. */
@@ -83,6 +86,7 @@ export function TimelineProvider({ initialState = null, children }: TimelineProv
       moveNode: (trackId, fromStep, toStep) => modelDispatch({ type: 'moveNode', trackId, fromStep, toStep }),
       shiftLine: (trackId, base, delta) => modelDispatch({ type: 'shiftLine', trackId, base, delta }),
       addTrack: (track) => modelDispatch({ type: 'addTrack', track }),
+      editTrack: (trackId, changes) => modelDispatch({ type: 'editTrack', trackId, changes }),
       setBpmRange: (bpmMin, bpmMax, edited) => modelDispatch({ type: 'setBpmRange', bpmMin, bpmMax, edited }),
       beginDrag: () => setActiveDrags((n) => n + 1),
       endDrag: () => setActiveDrags((n) => Math.max(0, n - 1)),
@@ -119,6 +123,8 @@ export function TimelineProvider({ initialState = null, children }: TimelineProv
     clock.attach()
     return () => clock.detach()
   }, [clock])
+  // Play/pause/stop (button or Space) start and stop the backend's sequence players.
+  useEffect(() => syncTransport(clock, socket), [clock, socket])
 
   const actions = useMemo<ViewportActions>(
     () => ({

@@ -2,12 +2,16 @@
  * Validation for client → server timeline messages. Mirrors ClientMessage in
  * client/src/timeline/sync/protocol.ts:
  *
- *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel? }] }
- *   { type: 'addTrack', id, bpms, channel? }        // channel: integer 1–16
+ *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel?, sequence? }] }
+ *   { type: 'addTrack', id, bpms, channel?, sequence? }  // channel: integer 1–16
+ *       // sequence: 1–16 integers, each a MIDI note 0–127 or -1 for a rest
+ *   { type: 'sequence', trackId, sequence }   // the track's MIDI sequence was edited
  *   { type: 'patch', trackId, from, to, bpms, lineLength }
  *       // steps [from, to) changed to `bpms` (bpms.length === to - from); the line is then
  *       // `lineLength` steps long. If lineLength differs from the current length, to === lineLength.
  *   { type: 'projectBpm', bpm }
+ *   { type: 'start' }      // transport started (play button or Space): start every channel's player
+ *   { type: 'stop' }       // transport paused or stopped: stop every channel's player
  *
  * parseMessage() returns the validated message or throws a ProtocolError. It checks shape only;
  * whether a patch fits the current track is the store's job.
@@ -39,6 +43,30 @@ function checkChannel(channel, where) {
   if (channel === undefined) return;
   if (!Number.isInteger(channel) || channel < CHANNEL_MIN || channel > CHANNEL_MAX) {
     throw new ProtocolError(`${where}: channel must be an integer between ${CHANNEL_MIN} and ${CHANNEL_MAX}`);
+  }
+}
+
+const SEQUENCE_MAX_LENGTH = 16;
+const MIDI_NOTE_MIN = 0;
+const MIDI_NOTE_MAX = 127;
+const REST = -1;
+
+function isStep(value) {
+  return Number.isInteger(value) && (value === REST || (value >= MIDI_NOTE_MIN && value <= MIDI_NOTE_MAX));
+}
+
+function checkSequence(sequence, where, { optional = true } = {}) {
+  if (sequence === undefined && optional) return;
+  if (!Array.isArray(sequence)) throw new ProtocolError(`${where}: sequence must be an array`);
+  if (sequence.length < 1 || sequence.length > SEQUENCE_MAX_LENGTH) {
+    throw new ProtocolError(`${where}: sequence must have 1 to ${SEQUENCE_MAX_LENGTH} steps`);
+  }
+  for (let i = 0; i < sequence.length; i++) {
+    if (!isStep(sequence[i])) {
+      throw new ProtocolError(
+        `${where}: sequence[${i}] must be an integer between ${MIDI_NOTE_MIN} and ${MIDI_NOTE_MAX}, or ${REST} for a rest`,
+      );
+    }
   }
 }
 
@@ -74,6 +102,7 @@ function parseMessage(raw) {
         seen.add(track.id);
         checkBpms(track.bpms, `snapshot track ${track.id}`);
         checkChannel(track.channel, `snapshot track ${track.id}`);
+        checkSequence(track.sequence, `snapshot track ${track.id}`);
       }
       return msg;
     }
@@ -81,6 +110,11 @@ function parseMessage(raw) {
       if (!isId(msg.id)) throw new ProtocolError("addTrack: id must be a non-empty string");
       checkBpms(msg.bpms, `addTrack ${msg.id}`);
       checkChannel(msg.channel, `addTrack ${msg.id}`);
+      checkSequence(msg.sequence, `addTrack ${msg.id}`);
+      return msg;
+    case "sequence":
+      if (!isId(msg.trackId)) throw new ProtocolError("sequence: trackId must be a non-empty string");
+      checkSequence(msg.sequence, `sequence ${msg.trackId}`, { optional: false });
       return msg;
     case "patch":
       if (!isId(msg.trackId)) throw new ProtocolError("patch: trackId must be a non-empty string");
@@ -98,9 +132,21 @@ function parseMessage(raw) {
     case "projectBpm":
       if (!isBpm(msg.bpm)) throw new ProtocolError("projectBpm: bpm must be a positive number");
       return msg;
+    case "start":
+    case "stop":
+      return msg;
     default:
       throw new ProtocolError(`unknown message type ${JSON.stringify(msg.type)}`);
   }
 }
 
-module.exports = { parseMessage, ProtocolError, CHANNEL_MIN, CHANNEL_MAX };
+module.exports = {
+  parseMessage,
+  ProtocolError,
+  CHANNEL_MIN,
+  CHANNEL_MAX,
+  SEQUENCE_MAX_LENGTH,
+  MIDI_NOTE_MIN,
+  MIDI_NOTE_MAX,
+  REST,
+};

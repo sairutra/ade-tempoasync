@@ -3,12 +3,13 @@ const { ProtocolError } = require("./messages");
 
 /**
  * The server's copy of the timeline: the project BPM and, per track, `bpms` (bpms[i] is the BPM of
- * step i) and its `channel` (1–16) when the client sent one. The client is the source of truth, so this only applies what it is sent.
+ * step i), its `channel` (1–16) and its MIDI `sequence`, each when the client sent one. The client is the source of truth, so this only applies what it is sent.
  *
  * Emits after every applied message:
  *   'snapshot'   (store)
  *   'track'      (trackId, bpms, { from, to }, channel) — a track was added or edited; [from, to) changed.
  *                A patch may also have cut the line short: bpms.length is the new length.
+ *   'sequence'   (trackId, sequence) — a track's MIDI sequence was edited
  *   'projectBpm' (bpm)
  * Playback can subscribe to these instead of reading WebSocket messages itself.
  */
@@ -20,6 +21,8 @@ class TimelineStore extends EventEmitter {
     this.tracks = new Map();
     /** @type {Map<string, number>} Channel per track id; tracks sent without one are absent. */
     this.channels = new Map();
+    /** @type {Map<string, number[]>} MIDI sequence per track id; tracks sent without one are absent. */
+    this.sequences = new Map();
   }
 
   /** Applies a message validated by parseMessage(). Throws ProtocolError if it doesn't fit the state. */
@@ -29,6 +32,9 @@ class TimelineStore extends EventEmitter {
         this.projectBpm = msg.projectBpm;
         this.tracks = new Map(msg.tracks.map((t) => [t.id, t.bpms.slice()]));
         this.channels = new Map(msg.tracks.filter((t) => t.channel !== undefined).map((t) => [t.id, t.channel]));
+        this.sequences = new Map(
+          msg.tracks.filter((t) => t.sequence !== undefined).map((t) => [t.id, t.sequence.slice()]),
+        );
         this.emit("snapshot", this);
         return;
       case "addTrack":
@@ -36,14 +42,25 @@ class TimelineStore extends EventEmitter {
         this.tracks.set(msg.id, msg.bpms.slice());
         if (msg.channel === undefined) this.channels.delete(msg.id);
         else this.channels.set(msg.id, msg.channel);
+        if (msg.sequence === undefined) this.sequences.delete(msg.id);
+        else this.sequences.set(msg.id, msg.sequence.slice());
         this.emit("track", msg.id, this.tracks.get(msg.id), { from: 0, to: msg.bpms.length }, this.channels.get(msg.id));
         return;
       case "patch":
         this.applyPatch(msg);
         return;
+      case "sequence":
+        if (!this.tracks.has(msg.trackId)) throw new ProtocolError(`sequence: unknown track ${msg.trackId}`);
+        this.sequences.set(msg.trackId, msg.sequence.slice());
+        this.emit("sequence", msg.trackId, this.sequences.get(msg.trackId));
+        return;
       case "projectBpm":
         this.projectBpm = msg.bpm;
         this.emit("projectBpm", msg.bpm);
+        return;
+      case "start":
+      case "stop":
+        // Transport commands change playback, not the timeline (see wsServer.js).
         return;
     }
   }
@@ -72,9 +89,12 @@ class TimelineStore extends EventEmitter {
   toJSON() {
     return {
       projectBpm: this.projectBpm,
-      tracks: [...this.tracks].map(([id, bpms]) =>
-        this.channels.has(id) ? { id, bpms, channel: this.channels.get(id) } : { id, bpms },
-      ),
+      tracks: [...this.tracks].map(([id, bpms]) => {
+        const track = { id, bpms };
+        if (this.channels.has(id)) track.channel = this.channels.get(id);
+        if (this.sequences.has(id)) track.sequence = this.sequences.get(id);
+        return track;
+      }),
     };
   }
 }

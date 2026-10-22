@@ -36,6 +36,7 @@ test("parseMessage rejects malformed messages", () => {
     JSON.stringify({ type: "addTrack", id: "a", bpms: [100], channel: "3" }),
     JSON.stringify({ type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [1], channel: 99 }] }),
     JSON.stringify({ type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [1] }, { id: "a", bpms: [1] }] }),
+    JSON.stringify({ type: "Start" }),
   ]) {
     assert.throws(() => parseMessage(raw), ProtocolError, raw);
   }
@@ -136,6 +137,51 @@ test("WebSocket on /ws applies client messages and answers bad ones with an erro
   assert.deepEqual(store.tracks.get("a"), [100, 100, 130]);
 });
 
+test("start and stop messages start and stop every project channel's player", async (t) => {
+  const { locals } = require("../app");
+  const calls = [];
+  const fakeChannel = (name, playing = false) => ({
+    isPlaying: playing,
+    play() {
+      calls.push(["play", name]);
+      this.isPlaying = true;
+    },
+    stop() {
+      calls.push(["stop", name]);
+      this.isPlaying = false;
+    },
+  });
+  locals.project.channels.set("a", fakeChannel("a"));
+  locals.project.channels.set("b", fakeChannel("b", true)); // already playing: not started twice
+  t.after(() => locals.project.channels.clear());
+
+  const store = new TimelineStore();
+  const server = http.createServer();
+  attachTimelineSocket(server, { store });
+  server.listen(0);
+  await once(server, "listening");
+  t.after(() => server.close());
+  const ws = new WebSocket(`ws://localhost:${server.address().port}/ws`);
+  await once(ws, "open");
+  t.after(() => ws.close());
+
+  // Messages on one socket are handled in order, so the error reply to a bad message
+  // means everything sent before it has been applied.
+  const settled = async () => {
+    ws.send("not json");
+    await once(ws, "message");
+  };
+
+  ws.send(JSON.stringify({ type: "start" }));
+  await settled();
+  assert.deepEqual(calls, [["play", "a"]]);
+
+  ws.send(JSON.stringify({ type: "stop" }));
+  await settled();
+  assert.deepEqual(calls.slice(1), [["stop", "a"], ["stop", "b"]]);
+  assert.deepEqual(store.toJSON(), { projectBpm: null, tracks: [] }); // timeline untouched
+});
+
 test("upgrades on other paths are refused", async (t) => {
   const server = http.createServer();
   attachTimelineSocket(server, { store: new TimelineStore() });
@@ -145,4 +191,62 @@ test("upgrades on other paths are refused", async (t) => {
 
   const ws = new WebSocket(`ws://localhost:${server.address().port}/other`);
   await once(ws, "error");
+});
+
+test("MIDI sequences: validated, stored from snapshot/addTrack/sequence, and checked against the track", () => {
+  for (const sequence of [[], Array(17).fill(60), [128], [-2], [60.5], ["60"], "60"]) {
+    assert.throws(() => parseMessage(JSON.stringify({ type: "addTrack", id: "a", bpms: [100], sequence })), ProtocolError);
+    assert.throws(() => parseMessage(JSON.stringify({ type: "sequence", trackId: "a", sequence })), ProtocolError);
+  }
+  assert.throws(() => parseMessage(JSON.stringify({ type: "sequence", trackId: "a" })), ProtocolError);
+  assert.throws(() => parseMessage(JSON.stringify({ type: "sequence", trackId: "", sequence: [60] })), ProtocolError);
+
+  const store = new TimelineStore();
+  apply(store, { type: "snapshot", projectBpm: 120, tracks: [{ id: "a", bpms: [100], sequence: [60, -1] }, { id: "b", bpms: [90] }] });
+  apply(store, { type: "addTrack", id: "c", bpms: [80], channel: 2, sequence: [0, 127, -1] });
+  const events = [];
+  store.on("sequence", (id, seq) => events.push([id, seq]));
+  apply(store, { type: "sequence", trackId: "b", sequence: [64] });
+  assert.deepEqual(events, [["b", [64]]]);
+  assert.deepEqual(store.toJSON().tracks, [
+    { id: "a", bpms: [100], sequence: [60, -1] },
+    { id: "b", bpms: [90], sequence: [64] },
+    { id: "c", bpms: [80], channel: 2, sequence: [0, 127, -1] },
+  ]);
+  assert.throws(() => apply(store, { type: "sequence", trackId: "zzz", sequence: [60] }), ProtocolError);
+});
+
+test("addTrack and sequence messages set the project channel's sequence", async (t) => {
+  const { locals } = require("../app");
+  t.after(() => locals.project.channels.clear());
+
+  const store = new TimelineStore();
+  const server = http.createServer();
+  attachTimelineSocket(server, { store });
+  server.listen(0);
+  await once(server, "listening");
+  t.after(() => server.close());
+  const ws = new WebSocket(`ws://localhost:${server.address().port}/ws`);
+  await once(ws, "open");
+  t.after(() => ws.close());
+  const settled = async () => {
+    ws.send("not json");
+    await once(ws, "message");
+  };
+
+  ws.send(JSON.stringify({ type: "addTrack", id: "lead", bpms: [120, 120], channel: 3, sequence: [60, -1, 62, -1] }));
+  await settled();
+  const channel = locals.project.channels.get("lead");
+  assert.equal(channel.id, 2);
+  assert.deepEqual(channel.sequence, [60, -1, 62, -1]);
+
+  ws.send(JSON.stringify({ type: "sequence", trackId: "lead", sequence: [72] }));
+  await settled();
+  assert.deepEqual(channel.sequence, [72]);
+
+  // An invalid edit is answered with an error and leaves the channel alone.
+  ws.send(JSON.stringify({ type: "sequence", trackId: "lead", sequence: [128] }));
+  const [reply] = await once(ws, "message");
+  assert.equal(JSON.parse(reply.toString()).type, "error");
+  assert.deepEqual(channel.sequence, [72]);
 });

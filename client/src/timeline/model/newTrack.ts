@@ -1,11 +1,14 @@
 import { distinctColor } from './colors'
-import { roundBpm } from './nodes'
+import { deriveNodes, roundBpm } from './nodes'
+import { generatePattern, patternError, patternLength, quantizeInSync, type PatternSpec } from './patterns'
+import { isValidSequence } from './sequence'
 import { getContentEndStep } from './selectors'
 import { STEPS_PER_BAR } from './tempo'
 import type { TimelineState, Track } from './types'
 
 /** A new line spans at least this many steps, so it has room to be shaped even on an empty timeline. */
-export const NEW_TRACK_MIN_STEPS = 4 * STEPS_PER_BAR
+export const NEW_TRACK_MIN_BARS = 32
+export const NEW_TRACK_MIN_STEPS = NEW_TRACK_MIN_BARS * STEPS_PER_BAR
 
 /** Channel numbers are integers in this range. */
 export const CHANNEL_MIN = 1
@@ -26,10 +29,14 @@ export type NewTrackInput = {
   name: string
   /** Picked colour; adjusted to a distinct shade if another track already uses it. */
   color: string
-  /** Initial (flat) BPM of the line. */
+  /** BPM of a flat line; with `pattern`, the sync BPM the pattern keeps time with. */
   bpm: number
+  /** Generate the line from this pattern instead of a flat line at `bpm` (see patterns.ts). */
+  pattern?: PatternSpec
   /** Channel number, an integer in [CHANNEL_MIN, CHANNEL_MAX]. */
   channel: number
+  /** MIDI sequence, 1–16 steps of MIDI notes (0–127) or -1 for a rest (see sequence.ts). */
+  sequence: number[]
 }
 
 /** Colours already in use by tracks of `state`. */
@@ -46,8 +53,9 @@ function uniqueId(state: TimelineState, name: string): string {
 }
 
 /**
- * Builds a flat line at `bpm` from step 0 to the current content end (at least
- * NEW_TRACK_MIN_STEPS long), with nodes at both ends so it can be bent right away.
+ * Builds a line from step 0 to the current content end (at least NEW_TRACK_MIN_STEPS long): flat at
+ * `bpm` with nodes at both ends, or, with `pattern`, the generated pattern rounded up to whole sync
+ * windows, with a node at every bend.
  * Throws on input createTimelineState would reject, so callers validate first.
  */
 export function buildNewTrack(state: TimelineState, input: NewTrackInput): Track {
@@ -55,16 +63,30 @@ export function buildNewTrack(state: TimelineState, input: NewTrackInput): Track
   if (!name) throw new Error('Track name is required')
   if (!(input.bpm > 0) || !Number.isFinite(input.bpm)) throw new Error(`Invalid BPM ${input.bpm}`)
   if (!isValidChannel(input.channel)) throw new Error(`Invalid channel ${input.channel}`)
+  if (!isValidSequence(input.sequence)) throw new Error(`Invalid sequence ${JSON.stringify(input.sequence)}`)
+  const patternProblem = input.pattern && patternError(input.pattern, input.bpm)
+  if (patternProblem) throw new Error(`Invalid pattern: ${patternProblem}`)
 
-  const length = Math.max(NEW_TRACK_MIN_STEPS, getContentEndStep(state) + 1)
-  const bpm = roundBpm(input.bpm)
+  const minLength = Math.max(NEW_TRACK_MIN_STEPS, getContentEndStep(state) + 1)
+  let bpms: number[]
+  let nodes: number[]
+  if (input.pattern) {
+    const length = patternLength(input.pattern, minLength)
+    bpms = quantizeInSync(generatePattern(input.pattern, input.bpm, length))
+    nodes = deriveNodes(bpms)
+  } else {
+    const bpm = roundBpm(input.bpm)
+    bpms = Array.from({ length: minLength }, () => bpm)
+    nodes = [0, minLength - 1]
+  }
   return {
     id: uniqueId(state, name),
     name,
-    bpms: Array.from({ length }, () => bpm),
-    nodes: [0, length - 1],
+    bpms,
+    nodes,
     sourceOffset: 0,
     color: distinctColor(input.color, usedColors(state)),
     channel: input.channel,
+    sequence: input.sequence.slice(),
   }
 }

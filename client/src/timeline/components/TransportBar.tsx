@@ -6,7 +6,14 @@ import { useIsPlaying, useTransportClock } from '../state/TimelineProvider'
  * Play/pause, stop, and the playhead position. Re-renders only on play/pause;
  * the position readout is written imperatively every frame.
  */
-export function TransportBar({ bpm }: { bpm: number }) {
+type Props = {
+  bpm: number
+  /** Sync view: lines drawn at real time (see TrackLine). Omit both to hide the toggle. */
+  syncView?: boolean
+  onToggleSyncView?: () => void
+}
+
+export function TransportBar({ bpm, syncView = false, onToggleSyncView }: Props) {
   const clock = useTransportClock()
   const playing = useIsPlaying()
   const barsRef = useRef<HTMLSpanElement>(null)
@@ -43,6 +50,21 @@ export function TransportBar({ bpm }: { bpm: number }) {
       <span className="tl-transport-pos" aria-label="Position (bar.beat.16th)" ref={barsRef} />
       <span className="tl-transport-time" ref={clockRef} />
       <span className="tl-transport-bpm">{bpm} BPM</span>
+      {onToggleSyncView && (
+        <button
+          type="button"
+          className="tl-transport-view"
+          onClick={onToggleSyncView}
+          aria-pressed={syncView}
+          title={
+            syncView
+              ? 'Sync view: lines at the real time each step sounds. Click for the step view.'
+              : 'Step view: point i drawn at project step i. Click for the sync view (real time).'
+          }
+        >
+          {syncView ? 'X: time' : 'X: steps'}
+        </button>
+      )}
     </div>
   )
 }

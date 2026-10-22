@@ -1,6 +1,7 @@
 import { buildNewTrack, type NewTrackInput } from './newTrack'
 import { addNode, moveNode, removeNode, setNodeBpm, shiftBpms } from './nodes'
 import { normalizeBpmRange } from './selectors'
+import { isValidSequence } from './sequence'
 import type { TimelineState, Track } from './types'
 
 /** Every line starts at step 0, so node indices (into bpms) and steps are the same numbers. */
@@ -12,8 +13,17 @@ export type ModelAction = LineAction | TrackAction | RangeAction
  */
 export type RangeAction = { type: 'setBpmRange'; bpmMin: number; bpmMax: number; edited?: 'min' | 'max' }
 
-/** Adds a track; its colour is made distinct from the existing tracks' (see buildNewTrack). */
-export type TrackAction = { type: 'addTrack'; track: NewTrackInput }
+/**
+ * Track data the edit dialog can change. Only the sequence for now; name, colour and channel can be
+ * added here later (the backend sync would need messages for them too).
+ */
+export type TrackEdit = { sequence?: number[] }
+
+export type TrackAction =
+  /** Adds a track; its colour is made distinct from the existing tracks' (see buildNewTrack). */
+  | { type: 'addTrack'; track: NewTrackInput }
+  /** Applies `changes` to a track. Invalid values are ignored (the dialog validates first). */
+  | { type: 'editTrack'; trackId: string; changes: TrackEdit }
 
 export type LineAction =
   | { type: 'addNode'; trackId: string; index: number }
@@ -60,10 +70,24 @@ export function modelReducer(state: TimelineState, action: ModelAction): Timelin
     const track = buildNewTrack(state, action.track)
     return { ...state, tracks: { ...state.tracks, [track.id]: track } }
   }
+  if (action.type === 'editTrack') return editTrack(state, action.trackId, action.changes)
   const track = state.tracks[action.trackId]
   if (!track) return state
   const line = { bpms: track.bpms, nodes: track.nodes }
   const next = apply(line, action)
   if (next.bpms === line.bpms && next.nodes === line.nodes) return state
   return { ...state, tracks: { ...state.tracks, [track.id]: { ...track, ...next } } }
+}
+
+function sameSequence(a: readonly number[] | undefined, b: readonly number[]): boolean {
+  return a !== undefined && a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+/** A new track object (and `sequence` array) only when something actually changes. */
+function editTrack(state: TimelineState, trackId: string, changes: TrackEdit): TimelineState {
+  const track = state.tracks[trackId]
+  if (!track) return state
+  const { sequence } = changes
+  if (sequence === undefined || !isValidSequence(sequence) || sameSequence(track.sequence, sequence)) return state
+  return { ...state, tracks: { ...state.tracks, [trackId]: { ...track, sequence: sequence.slice() } } }
 }

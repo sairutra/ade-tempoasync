@@ -127,16 +127,24 @@ describe('useBackendSync', () => {
 
   it('sends addTrack for a new track', () => {
     const ws = mount()
-    edit({ type: 'addTrack', track: { name: 'Bass', color: '#00ff00', bpm: 128, channel: 10 } })
+    edit({ type: 'addTrack', track: { name: 'Bass', color: '#00ff00', bpm: 128, channel: 10, sequence: [60, -1, -1, -1] } })
     expect(ws.sent).toHaveLength(1)
-    expect(ws.sent[0]).toMatchObject({ type: 'addTrack', id: 'bass', channel: 10 })
+    expect(ws.sent[0]).toMatchObject({ type: 'addTrack', id: 'bass', channel: 10, sequence: [60, -1, -1, -1] })
     expect((ws.sent[0] as { bpms: number[] }).bpms.every((b) => b === 128)).toBe(true)
+  })
+
+  it('sends a sequence message, and no patch, when only the sequence is edited', () => {
+    const ws = mount()
+    edit({ type: 'editTrack', trackId: 'a', changes: { sequence: [64, -1, 67, -1] } })
+    expect(ws.sent).toEqual([{ type: 'sequence', trackId: 'a', sequence: [64, -1, 67, -1] }])
+    edit({ type: 'editTrack', trackId: 'a', changes: { sequence: [64, -1, 67, -1] } })
+    expect(ws.sent).toHaveLength(1)
   })
 
   it('sends each edit once under StrictMode', () => {
     const ws = mount(true)
     edit({ type: 'setNodeBpm', trackId: 'a', index: 4, bpm: 120 })
-    edit({ type: 'addTrack', track: { name: 'Bass', color: '#00ff00', bpm: 128, channel: 10 } })
+    edit({ type: 'addTrack', track: { name: 'Bass', color: '#00ff00', bpm: 128, channel: 10, sequence: [60, -1, -1, -1] } })
     expect(ws.sent.map((m) => m.type)).toEqual(['patch', 'addTrack'])
   })
 
