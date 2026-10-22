@@ -2,6 +2,9 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { distinctColor, normalizeHex, suggestColor } from '../model/colors'
 import { CHANNEL_MAX, CHANNEL_MIN, isValidChannel, type NewTrackInput } from '../model/newTrack'
 import { DEFAULT_SEQUENCE, sequenceFromSlots, slotsFromSequence } from '../model/sequence'
+import { defaultPatternDraft, patternFromDraft, type PatternDraft } from '../model/patternDraft'
+import { patternError } from '../model/patterns'
+import { PatternInput } from './PatternInput'
 import { SequenceInput } from './SequenceInput'
 
 export const CHANNEL_BPM_MIN = 1
@@ -20,7 +23,7 @@ type Props = {
 }
 
 /**
- * Modal form for a new channel: name, colour, BPM, channel number (1–16) and a 16-step MIDI sequence
+ * Modal form for a new channel: name, colour, a straight line at a BPM or a generated pattern (see PatternInput), channel number (1–16) and a 16-step MIDI sequence
  * (middle C on every downbeat by default). A colour already used by another track is
  * shown (and saved) as a slightly different shade, so every line stays distinguishable.
  * Uses <dialog>.showModal(): focus trap, Escape and the backdrop come from the browser.
@@ -33,6 +36,8 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
   const [bpm, setBpm] = useState(String(defaultBpm))
   const [channel, setChannel] = useState(String(defaultChannel))
   const [slots, setSlots] = useState(() => slotsFromSequence(DEFAULT_SEQUENCE))
+  const [lineMode, setLineMode] = useState<'flat' | 'pattern'>('flat')
+  const [pattern, setPattern] = useState<PatternDraft>(() => defaultPatternDraft(defaultBpm))
 
   // Reset the form each time it opens, with a colour nobody uses yet.
   useEffect(() => {
@@ -43,6 +48,8 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
       setBpm(String(defaultBpm))
       setChannel(String(defaultChannel))
       setSlots(slotsFromSequence(DEFAULT_SEQUENCE))
+      setLineMode('flat')
+      setPattern(defaultPatternDraft(defaultBpm))
       dialog.showModal()
     } else if (!open && dialog.open) {
       dialog.close()
@@ -61,12 +68,14 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
   const channelValue = Number(channel)
   const channelValid = channel.trim() !== '' && isValidChannel(channelValue)
   const sequence = sequenceFromSlots(slots)
-  const valid = nameValid && bpmValid && channelValid && sequence !== null
+  const patternSpec = lineMode === 'pattern' ? patternFromDraft(pattern) : undefined
+  const patternValid = patternSpec === undefined || (bpmValid && patternError(patternSpec, bpmValue) === null)
+  const valid = nameValid && bpmValid && channelValid && sequence !== null && patternValid
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!valid || sequence === null) return
-    onSubmit({ name: name.trim(), color: finalColor, bpm: bpmValue, channel: channelValue, sequence })
+    onSubmit({ name: name.trim(), color: finalColor, bpm: bpmValue, channel: channelValue, sequence, pattern: patternSpec })
   }
 
   return (
@@ -115,8 +124,19 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
           )}
         </div>
 
+        <div className="tl-segmented" role="radiogroup" aria-label="Line">
+          <label className="tl-segment">
+            <input type="radio" name={`${ids}-line`} checked={lineMode === 'flat'} onChange={() => setLineMode('flat')} />
+            <span>Straight line</span>
+          </label>
+          <label className="tl-segment">
+            <input type="radio" name={`${ids}-line`} checked={lineMode === 'pattern'} onChange={() => setLineMode('pattern')} />
+            <span>Generate pattern</span>
+          </label>
+        </div>
+
         <label className="tl-field">
-          <span>BPM</span>
+          <span>{lineMode === 'flat' ? 'BPM' : 'Sync BPM'}</span>
           <input
             type="number"
             inputMode="decimal"
@@ -133,7 +153,14 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
               Enter a BPM between {CHANNEL_BPM_MIN} and {CHANNEL_BPM_MAX}.
             </p>
           )}
+          {lineMode === 'pattern' && bpmValid && (
+            <p className="tl-field-hint">The pattern centres on this BPM and keeps time with it.</p>
+          )}
         </label>
+
+        {lineMode === 'pattern' && (
+          <PatternInput draft={pattern} onChange={setPattern} syncBpm={bpmValid ? bpmValue : null} color={finalColor} />
+        )}
 
         <label className="tl-field">
           <span>Channel</span>

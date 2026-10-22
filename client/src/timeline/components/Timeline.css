@@ -761,3 +761,184 @@
   height: 12px;
   border-radius: 3px;
 }
+
+/* Straight line / generate pattern toggle, and the other radio groups of the pattern form. */
+.tl-dialog:has(.tl-pattern) {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.tl-dialog {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.tl-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--tl-bg);
+}
+
+.tl-segment {
+  flex: 1 1 0;
+  position: relative;
+  min-width: 0;
+}
+
+.tl-segment + .tl-segment {
+  border-left: 1px solid var(--tl-border);
+}
+
+/* The radio stays focusable and announced; the span is the visible button. */
+.tl-segment input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tl-segment span {
+  display: block;
+  padding: 5px 8px;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--tl-ruler-beat);
+}
+
+.tl-segment input:checked + span {
+  background: var(--tl-text);
+  color: var(--tl-bg);
+  font-weight: 600;
+}
+
+.tl-segment input:focus-visible + span {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: -2px;
+}
+
+.tl-pattern {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--tl-border);
+  border-radius: 6px;
+  min-width: 0;
+  gap: 10px;
+}
+
+.tl-pattern > legend {
+  padding: 0 4px;
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tl-field-row-center {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tl-subfield {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+}
+
+.tl-subfield input[type='number'],
+.tl-subfield select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  font: 13px var(--tl-font);
+  min-width: 0;
+}
+
+.tl-subfield input[type='range'] {
+  width: 100%;
+  accent-color: var(--tl-text);
+}
+
+.tl-inline-label {
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tl-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tl-check input {
+  margin: 1px 0 0;
+}
+
+.tl-btn-small {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-btn-small:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-split-rest {
+  flex: 1 1 0;
+  margin: 16px 0 0;
+  color: var(--tl-ruler-beat);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-split-rest strong {
+  color: var(--tl-text);
+}
+
+.tl-pattern-preview {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-pattern-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+}
+
+.tl-pattern-preview-sync {
+  stroke: var(--tl-ruler-beat);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tl-pattern-preview-window {
+  stroke: var(--tl-border);
+  stroke-width: 1;
+}
