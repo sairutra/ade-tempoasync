@@ -17,12 +17,17 @@ class Project {
 		this.stepLength = len;
 	}
 
+	setMidi(MidiAccess, Port){
+		this.MidiAccess = MidiAccess;
+		this.Port = Port;
+	}
+
 	addChannel(name, id, BPMvalues) {
 		if (this.channels.size >= 4) {
 			console.error("Max channel capacity of 4 already reached");
 			return ;
 		}
-		this.channels.set(name, new Channel(id, BPMvalues));
+		this.channels.set(name, new Channel(id, BPMvalue, this.MidiAccess, this.Port));
 	}
 
 	printChannels() {

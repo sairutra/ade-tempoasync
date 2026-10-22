@@ -100,8 +100,8 @@ function onListening() {
   function onMIDISuccess(midiAccess) {
     console.log("MIDI ready!");
     midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
+    app.locals.project.setMidi(midiAccess, 'Scarlett 8i6 USB');
     listInputsAndOutputs(midiAccess);
-    app.locals.midiAccess = midiAccess;
   }
   function listInputsAndOutputs(midiAccess) {
     console.log("inputs!");

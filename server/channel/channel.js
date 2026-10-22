@@ -1,10 +1,14 @@
 var Message = require('../utils/message.js');
 
 class Channel {
-	constructor(channel, BPMvalues) {
+	constructor(channel, BPMvalues, midiAccess, Port) {
 		this.id = channel;
 		this.BPMvalues = BPMvalues; //array van ints -> BPM per step
-		this.sequence = []; // array van ints -> noten
+		this.sequence = [50, 51, -1, -1, -1, 60, 65]; // array van ints -> noten
+		this.midiAccess = midiAccess;
+		this.Port = Port;
+		this.message = null;
+		this.run = false;
 	}
 
 	setSequence(sequence) {
@@ -29,14 +33,36 @@ class Channel {
 		console.log("New BPMvalues: " + this.BPMvalues);
 	}
 
-	sayHi() {
-		console.log("hi from channel " + this.id);
+	playSequence() {
+		const noteList = arrayToList(this.sequence);
+		const headNode = noteList;
+		let i = 0;
+		this.run = true;
+
+		while (this.run)
+		{
+			this.createMessage(noteList.data, this.BPMvalues[i]);
+			this.sendMessage()
+			noteList = noteList.next;
+			i++;
+			if (!noteList.next)
+			{
+				noteList = headNode;
+			}
+			if (i > this.BPMvalues.length())
+			{
+				this.run = false;
+				i = 0;
+				noteList = headNode;
+			}
+		}
+    
+
 	}
 
 
 	createMessage(note, BPM) {
-	var msg = new Message(note, BPM);
-	return msg;
+		this.message = new Message(note, BPM, this.midiAccess, this.Port);
 	}
 }
 
