@@ -49,7 +49,7 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
         );
       }
       if (msg.type === "addTrack") {
-        app.locals.project.addChannel(msg.id, msg.channel, msg.bpms);
+        app.locals.project.addChannel(msg.id, msg.channel - 1, msg.bpms);
       }
       if (msg.type === "patch") {
         // Tracks from a snapshot have no project channel yet; skip instead of throwing
