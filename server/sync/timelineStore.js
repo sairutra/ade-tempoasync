@@ -45,6 +45,10 @@ class TimelineStore extends EventEmitter {
         this.projectBpm = msg.bpm;
         this.emit("projectBpm", msg.bpm);
         return;
+      case "start":
+      case "stop":
+        // Transport commands change playback, not the timeline (see wsServer.js).
+        return;
     }
   }
 

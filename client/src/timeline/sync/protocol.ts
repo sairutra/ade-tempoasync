@@ -17,6 +17,10 @@ export type ClientMessage =
    */
   | { type: 'patch'; trackId: string; from: number; to: number; bpms: number[]; lineLength: number }
   | { type: 'projectBpm'; bpm: number }
+  /** The transport started (play button or Space): the server starts every channel's sequence player. */
+  | { type: 'start' }
+  /** The transport paused, stopped, or reached the end: the server stops every channel's sequence player. */
+  | { type: 'stop' }
 
 /** Adds `channel` only when set, so tracks without one send exactly what they did before. */
 export function withChannel<T extends object>(msg: T, channel: number | undefined): T & { channel?: number } {

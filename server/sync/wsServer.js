@@ -57,6 +57,18 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
         const channel = app.locals.project.channels.get(msg.trackId);
         if (channel) channel.updateBPMvalues(msg.from, msg.to, msg.bpms);
       }
+      if (msg.type === "start") {
+        // Every channel starts together; one already playing is left alone
+        // (SequencePlayer.start throws if it is, and an exception here is uncaught).
+        for (const channel of app.locals.project.channels.values()) {
+          if (!channel.isPlaying) channel.play();
+        }
+      }
+      if (msg.type === "stop") {
+        for (const channel of app.locals.project.channels.values()) {
+          channel.stop();
+        }
+      }
       debug("%s %s", msg.type, describe(msg));
     });
 
@@ -82,6 +94,9 @@ function describe(msg) {
       return `${msg.trackId} [${msg.from}, ${msg.to}) of ${msg.lineLength} steps`;
     case "projectBpm":
       return String(msg.bpm);
+    case "start":
+    case "stop":
+      return `${app.locals.project.channels.size} channel(s)`;
   }
 }
 

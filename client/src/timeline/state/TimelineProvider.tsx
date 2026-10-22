@@ -15,6 +15,7 @@ import { timeToStep } from '../model/tempo'
 import type { TimelineState } from '../model/types'
 import { TransportClock } from '../playback/transportClock'
 import { TimelineSocket } from '../sync/socket'
+import { syncTransport } from '../sync/transportSync'
 import { useBackendSync } from '../sync/useBackendSync'
 import { initViewportState, viewportReducer, type ViewportState } from '../viewport/viewportReducer'
 
@@ -119,6 +120,8 @@ export function TimelineProvider({ initialState = null, children }: TimelineProv
     clock.attach()
     return () => clock.detach()
   }, [clock])
+  // Play/pause/stop (button or Space) start and stop the backend's sequence players.
+  useEffect(() => syncTransport(clock, socket), [clock, socket])
 
   const actions = useMemo<ViewportActions>(
     () => ({

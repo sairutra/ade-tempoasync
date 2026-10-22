@@ -8,6 +8,8 @@
  *       // steps [from, to) changed to `bpms` (bpms.length === to - from); the line is then
  *       // `lineLength` steps long. If lineLength differs from the current length, to === lineLength.
  *   { type: 'projectBpm', bpm }
+ *   { type: 'start' }      // transport started (play button or Space): start every channel's player
+ *   { type: 'stop' }       // transport paused or stopped: stop every channel's player
  *
  * parseMessage() returns the validated message or throws a ProtocolError. It checks shape only;
  * whether a patch fits the current track is the store's job.
@@ -97,6 +99,9 @@ function parseMessage(raw) {
       return msg;
     case "projectBpm":
       if (!isBpm(msg.bpm)) throw new ProtocolError("projectBpm: bpm must be a positive number");
+      return msg;
+    case "start":
+    case "stop":
       return msg;
     default:
       throw new ProtocolError(`unknown message type ${JSON.stringify(msg.type)}`);
