@@ -36,6 +36,8 @@ class Channel {
 
 	// One step per BPM value (a single pass); notes cycle through this.sequence,
 	// -1 is a rest. Each step lasts one 16th note at its own BPM.
+	// The player places each step on an absolute timeline and passes its
+	// scheduled time `at`; the note is sent stamped with that timestamp.
 	// Steps are built when playback starts, so BPM changes made during playback
 	// apply to the next play(), not the one already running.
 	buildSteps() {
@@ -43,9 +45,9 @@ class Channel {
 			const note = this.sequence[i % this.sequence.length];
 			return {
 				delayMs: 60000 / bpm / 4,
-				action: async () => {
+				action: async (signal, at) => {
 					if (note === -1) return;
-					new Message(note, bpm, this.midiAccess, this.Port).sendMessage();
+					new Message(note, bpm, this.midiAccess, this.Port, at).sendMessage();
 				},
 			};
 		});
