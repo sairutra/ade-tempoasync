@@ -7,13 +7,21 @@ import {
   visibleTicks,
   type TickLevel,
 } from '../viewport/ticks'
+import { drawGuides } from '../viewport/guides'
 import type { Viewport } from '../viewport/viewport'
 import { cssVar, useCanvas, type CanvasSize } from './useCanvas'
 
 /** Tick height as a fraction of the ruler height: bars tallest, 16ths shortest. */
 const TICK_HEIGHT: Record<TickLevel, number> = { bar: 0.6, beat: 0.4, step: 0.22 }
 
-export function Ruler({ viewport, bpm }: { viewport: Viewport; bpm: number }) {
+type Props = {
+  viewport: Viewport
+  bpm: number
+  /** Selection guides continued from the lanes (see GridCanvas); null for none. */
+  guideTimes?: readonly number[] | null
+}
+
+export function Ruler({ viewport, bpm, guideTimes = null }: Props) {
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, { width, height, dpr }: CanvasSize) => {
       const canvas = ctx.canvas
@@ -25,6 +33,8 @@ export function Ruler({ viewport, bpm }: { viewport: Viewport; bpm: number }) {
       }
       const h = Math.round(height * dpr)
       const lineW = Math.max(1, Math.round(dpr))
+
+      if (guideTimes) drawGuides(ctx, guideTimes, viewport, width, height, dpr, cssVar(canvas, '--tl-guide'))
 
       ctx.font = `${11 * dpr}px ${cssVar(canvas, '--tl-font')}`
       ctx.textBaseline = 'top'
@@ -43,7 +53,7 @@ export function Ruler({ viewport, bpm }: { viewport: Viewport; bpm: number }) {
       ctx.fillStyle = cssVar(canvas, '--tl-border')
       ctx.fillRect(0, h - Math.round(dpr), Math.round(width * dpr), Math.round(dpr))
     },
-    [viewport, bpm],
+    [viewport, bpm, guideTimes],
   )
 
   const ref = useCanvas(draw)

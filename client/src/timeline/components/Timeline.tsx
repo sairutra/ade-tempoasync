@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { suggestChannel, usedColors } from '../model/newTrack'
 import { getOrderedTracks } from '../model/selectors'
+import { lineBeats, lineTiming } from '../model/syncView'
 import { timeToStep } from '../model/tempo'
 import { useModelActions, useTimelineModel, useTransportClock, useViewport } from '../state/TimelineProvider'
 import { contentHeight, maxScrollY, PAD_TOP, rangeHeight } from '../viewport/bpmViewport'
@@ -41,6 +42,27 @@ export function Timeline() {
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null)
   const colorsInUse = useMemo(() => usedColors(model), [model])
   const nextChannel = useMemo(() => suggestChannel(model), [model])
+
+  // Sync view is rendering-only: bpms, playback and the backend never see it. The ruler, grid and
+  // viewport are linear in project time in both views, so toggling keeps every time at the same x
+  // (the playhead and the view don't move); only the lines are redrawn.
+  const [syncView, setSyncView] = useState(false)
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+  // Drags in progress, counted here too so the toggle can be ignored mid-drag (a drag maps the
+  // pointer through the view it started in).
+  const dragsRef = useRef(0)
+  const { beginDrag, endDrag } = modelActions
+  const onDragStart = useCallback(() => {
+    dragsRef.current++
+    beginDrag()
+  }, [beginDrag])
+  const onDragEnd = useCallback(() => {
+    dragsRef.current = Math.max(0, dragsRef.current - 1)
+    endDrag()
+  }, [endDrag])
+  const toggleSyncView = useCallback(() => {
+    if (dragsRef.current === 0) setSyncView((on) => !on)
+  }, [])
 
   // The lane area's size is the viewport size; it drives clamping and zoom-to-fit on both axes.
   useEffect(() => {
@@ -84,9 +106,20 @@ export function Timeline() {
   // Every line runs from step 0 to the timeline end (holding its last BPM), so it's always on screen.
   const contentEndStep = timeToStep(bounds.duration, model.projectBpm)
 
+  // Selection guides: the selected line's downbeats across the lanes and ruler (sync view only;
+  // in the step view they'd sit exactly on the project bars).
+  const selectedBpms = selectedTrackId === null ? undefined : model.tracks[selectedTrackId]?.bpms
+  const guideTimes = useMemo(
+    () =>
+      syncView && selectedBpms
+        ? lineBeats(lineTiming(selectedBpms), bounds.duration, model.projectBpm, false).map((b) => b.time)
+        : null,
+    [syncView, selectedBpms, bounds.duration, model.projectBpm],
+  )
+
   return (
     <div className="tl-root">
-      <TransportBar bpm={model.projectBpm} />
+      <TransportBar bpm={model.projectBpm} syncView={syncView} onToggleSyncView={toggleSyncView} />
       <div ref={rootRef} className="tl">
         <div className="tl-toolbar">
           <button type="button" onClick={() => zoomCentered(1 / ZOOM_STEP)} aria-label="Zoom out">−</button>
@@ -122,7 +155,7 @@ export function Timeline() {
             if (e.currentTarget.hasPointerCapture(e.pointerId)) seekToPointer(e)
           }}
         >
-          <Ruler viewport={viewport} bpm={model.projectBpm} />
+          <Ruler viewport={viewport} bpm={model.projectBpm} guideTimes={guideTimes} />
         </div>
 
         <div ref={headersRef} className="tl-headers">
@@ -138,8 +171,21 @@ export function Timeline() {
             zoomYToFit={actions.zoomYToFit}
           />
         </div>
-        <div ref={lanesRef} className="tl-lanes">
-          <GridCanvas viewport={viewport} bpm={model.projectBpm} bpmViewport={bpmViewport} bpmBounds={bpmBounds} />
+        <div
+          ref={lanesRef}
+          className="tl-lanes"
+          // Lines and nodes stop propagation, so a press that reaches here missed every line.
+          onPointerDown={(e) => {
+            if (e.button === 0) setSelectedTrackId(null)
+          }}
+        >
+          <GridCanvas
+            viewport={viewport}
+            bpm={model.projectBpm}
+            bpmViewport={bpmViewport}
+            bpmBounds={bpmBounds}
+            guideTimes={guideTimes}
+          />
           {/* One transform for both scrolls; lines are positioned in content space (see timeToContentX). */}
           <div
             className="tl-lanes-content"
@@ -165,8 +211,11 @@ export function Timeline() {
                   onRemoveNode={modelActions.removeNode}
                   onMoveNode={modelActions.moveNode}
                   onShiftLine={modelActions.shiftLine}
-                  onDragStart={modelActions.beginDrag}
-                  onDragEnd={modelActions.endDrag}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  syncView={syncView}
+                  selected={track.id === selectedTrackId}
+                  onSelect={setSelectedTrackId}
                 />
               ))}
             </div>

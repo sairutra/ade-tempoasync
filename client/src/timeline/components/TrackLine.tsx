@@ -1,9 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import { clampShift, nodeMoveRange, roundBpm, snapDragDelta } from '../model/nodes'
 import { bpmToFraction, clampBpm } from '../model/selectors'
-import { stepToTime, timeToStep } from '../model/tempo'
+import { lineBeats, lineStepAt, lineTimeAt, lineTiming, type LineTiming } from '../model/syncView'
+import { STEPS_PER_BAR, STEPS_PER_BEAT, stepToTime, timeToStep } from '../model/tempo'
 import { buildTrackPath, trackViewBox } from '../model/trackPath'
 import type { Track } from '../model/types'
+import { GRID_MIN_MINOR_SPACING_PX } from '../viewport/ticks'
 
 type Props = {
   track: Track
@@ -24,6 +26,15 @@ type Props = {
   /** Called once when a drag (node or whole line) begins and once when it ends. Must be stable. */
   onDragStart: () => void
   onDragEnd: () => void
+  /**
+   * Sync view: draw each point at the real time it sounds (see syncView.ts) instead of at its
+   * step on the project grid, with beat ticks on the line. Editing stays in steps.
+   */
+  syncView?: boolean
+  /** Highlighted in sync view. */
+  selected?: boolean
+  /** Called when the line or one of its nodes is pressed. Must be stable. */
+  onSelect?: (trackId: string) => void
 }
 
 /** Below this many pixels per step, node handles shrink so a dense curve stays readable. */
@@ -31,6 +42,9 @@ const DENSE_PX_PER_STEP = 8
 
 /** A node drag picks its axis once the pointer has moved this far, and keeps it until release. */
 const AXIS_LOCK_PX = 4
+
+/** Sync view: downbeat ticks are hidden when bars are closer than this (px). */
+const MIN_BAR_TICK_SPACING_PX = 6
 
 type Axis = 'x' | 'y'
 
@@ -50,6 +64,8 @@ type Drag =
       startBpm: number
       axis: Axis | null
       range: { min: number; max: number } | null
+      /** Sync view: the line's timing when the drag began, so pointer → step doesn't shift under the drag. */
+      timing: LineTiming | null
     }
   /** Ctrl+drag: moving the whole line vertically, from its points at the start of the drag. */
   | { kind: 'line'; pointerId: number; startY: number; base: readonly number[] }
@@ -86,10 +102,26 @@ export const TrackLine = memo(function TrackLine({
   onShiftLine,
   onDragStart,
   onDragEnd,
+  syncView = false,
+  selected = false,
+  onSelect,
 }: Props) {
   const { bpms, nodes } = track
-  const widthSteps = Math.max(bpms.length - 1, contentEndStep)
-  const path = useMemo(() => buildTrackPath(bpms, bpmMin, bpmMax, widthSteps), [bpms, bpmMin, bpmMax, widthSteps])
+  const timing = useMemo(() => (syncView ? lineTiming(bpms) : null), [bpms, syncView])
+  // Path x units are project steps in both views; in sync view a point sits at its real onset.
+  const xs = useMemo(
+    () => (timing ? timing.onsets.map((t) => timeToStep(t, projectBpm)) : undefined),
+    [timing, projectBpm],
+  )
+  /** The line's own last step on screen: its last point, or wherever it reaches the timeline end. */
+  const lineEndStep = timing
+    ? Math.max(bpms.length - 1, lineStepAt(timing, stepToTime(contentEndStep, projectBpm)))
+    : Math.max(bpms.length - 1, contentEndStep)
+  const widthSteps = xs ? Math.max(xs[xs.length - 1], contentEndStep) : lineEndStep
+  const path = useMemo(
+    () => buildTrackPath(bpms, bpmMin, bpmMax, widthSteps, xs),
+    [bpms, bpmMin, bpmMax, widthSteps, xs],
+  )
 
   const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<Drag | null>(null)
@@ -103,6 +135,20 @@ export const TrackLine = memo(function TrackLine({
   const color = { '--tl-line-color': track.color } as CSSProperties
   const labelTop = bpmToFraction(bpms[0], bpmMin, bpmMax) * 100
   const bpmAt = (index: number) => (index < bpms.length ? bpms[index] : bpms[bpms.length - 1])
+  /** Content x (px) of a line step. */
+  const stepX = (step: number) => (timing ? lineTimeAt(timing, step) * pxPerSecond : step * pxPerStep)
+  /** Line step under content x (px); fractional. */
+  const xStep = (x: number) => (timing ? lineStepAt(timing, x / pxPerSecond) : timeToStep(x / pxPerSecond, projectBpm))
+
+  // Sync view: beat ticks, dropped when they would crowd (the line's fastest BPM sets the spacing).
+  const fastest = useMemo(() => Math.max(...bpms), [bpms])
+  const showBeats = stepToTime(STEPS_PER_BEAT, fastest) * pxPerSecond >= GRID_MIN_MINOR_SPACING_PX
+  const showBars = stepToTime(STEPS_PER_BAR, fastest) * pxPerSecond >= MIN_BAR_TICK_SPACING_PX
+  const endTime = stepToTime(widthSteps, projectBpm)
+  const beats = useMemo(
+    () => (timing && showBars ? lineBeats(timing, endTime, projectBpm, showBeats) : []),
+    [timing, showBars, showBeats, endTime, projectBpm],
+  )
 
   // Unmounting mid-drag still ends it, so backend sync doesn't stay paused.
   useEffect(
@@ -125,6 +171,7 @@ export const TrackLine = memo(function TrackLine({
       startBpm: clampBpm(bpmAt(index), bpmMin, bpmMax),
       axis: null,
       range: null,
+      timing,
     }
     onDragStart()
     setDragStep(index)
@@ -140,12 +187,13 @@ export const TrackLine = memo(function TrackLine({
   const onLinePointerDown = (e: PointerEvent<SVGPathElement>) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    onSelect?.(track.id)
     if (e.ctrlKey) {
       startShift(e)
       return
     }
     const dx = e.clientX - svgRef.current!.getBoundingClientRect().left
-    const index = Math.min(Math.floor(widthSteps), Math.max(0, Math.round(timeToStep(dx / pxPerSecond, projectBpm))))
+    const index = Math.min(Math.floor(lineEndStep), Math.max(0, Math.round(xStep(dx))))
     if (!nodes.includes(index)) onAddNode(track.id, index)
     startDrag(e, index)
   }
@@ -153,6 +201,7 @@ export const TrackLine = memo(function TrackLine({
   const onNodePointerDown = (e: PointerEvent<HTMLSpanElement>, index: number) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    onSelect?.(track.id)
     if (e.ctrlKey) startShift(e)
     else startDrag(e, index)
   }
@@ -193,7 +242,12 @@ export const TrackLine = memo(function TrackLine({
     }
     if (drag.axis === 'x') {
       const { min, max } = drag.range!
-      const target = Math.min(max, Math.max(min, drag.originStep + Math.round(dx / pxPerStep)))
+      // Sync view: steps aren't evenly spaced, so map the pointer through the line's onsets
+      // (as they were when the drag began) rather than a constant px per step.
+      const moved = drag.timing
+        ? Math.round(lineStepAt(drag.timing, lineTimeAt(drag.timing, drag.originStep) + dx / pxPerSecond))
+        : drag.originStep + Math.round(dx / pxPerStep)
+      const target = Math.min(max, Math.max(min, moved))
       if (target === drag.step) return
       onMoveNode(track.id, drag.step, target)
       drag.step = target
@@ -222,6 +276,7 @@ export const TrackLine = memo(function TrackLine({
         className="tl-line"
         data-shifting={shifting || undefined}
         data-axis={dragAxis ?? undefined}
+        data-selected={(syncView && selected) || undefined}
         style={{ ...color, width }}
         viewBox={trackViewBox(bpmMin, bpmMax, widthSteps)}
         preserveAspectRatio="none"
@@ -240,6 +295,19 @@ export const TrackLine = memo(function TrackLine({
           <title>{`${track.name} — click to add a node, Ctrl+drag to move the line, Alt for 0.1 BPM steps`}</title>
         </path>
       </svg>
+      {beats.map((beat) => (
+        <span
+          key={beat.step}
+          className="tl-line-tick"
+          data-level={beat.level}
+          data-sync={beat.inSync || undefined}
+          style={{
+            ...color,
+            left: beat.time * pxPerSecond,
+            top: `${bpmToFraction(bpmAt(beat.step), bpmMin, bpmMax) * 100}%`,
+          }}
+        />
+      ))}
       <span className="tl-line-name" style={{ ...color, top: `${labelTop}%`, transform: 'translateY(calc(-100% - 4px))' }}>
         {track.name}
       </span>
@@ -255,7 +323,7 @@ export const TrackLine = memo(function TrackLine({
             data-dense={pxPerStep < DENSE_PX_PER_STEP || undefined}
             data-active={active || undefined}
             data-axis={(active && dragAxis) || undefined}
-            style={{ ...color, left: index * pxPerStep, top: `${bpmToFraction(bpms[index], bpmMin, bpmMax) * 100}%` }}
+            style={{ ...color, left: stepX(index), top: `${bpmToFraction(bpms[index], bpmMin, bpmMax) * 100}%` }}
             title={`${track.name}: ${formatBpm(bpms[index])} BPM${k > 0 && k < nodes.length - 1 ? ' — right-click to remove' : ''}`}
             onPointerDown={(e) => onNodePointerDown(e, index)}
             onContextMenu={(e) => onNodeContextMenu(e, index)}

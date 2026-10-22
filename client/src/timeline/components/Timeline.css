@@ -17,6 +17,9 @@
   --tl-grid-step: rgba(255, 255, 255, 0.03);
   --tl-line-default: #7a7f8c;
   --tl-playhead: #ff6b5e;
+  /* Sync view: a line downbeat on a project bar line, and the selected line's downbeat guides. */
+  --tl-sync: #7ee08a;
+  --tl-guide: rgba(255, 255, 255, 0.22);
   --tl-font: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   display: flex;
@@ -96,6 +99,26 @@
 .tl-transport-bpm {
   margin-left: auto;
   color: var(--tl-ruler-bar);
+}
+
+.tl-transport-view {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-transport-view:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-transport-view[aria-pressed='true'] {
+  color: var(--tl-sync);
+  border-color: var(--tl-sync);
 }
 
 .tl-toolbar {
@@ -416,6 +439,36 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Sync view: selected line drawn heavier. */
+.tl-line[data-selected] path:not(.tl-line-hit) {
+  stroke-width: 3px;
+}
+
+/* Sync view: beat ticks centred on the line, taller on downbeats; a downbeat on a project bar is green. */
+.tl-line-tick {
+  position: absolute;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  transform: translateY(-50%);
+  background: var(--tl-line-color, var(--tl-line-default));
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.tl-line-tick[data-level='bar'] {
+  height: 16px;
+  opacity: 1;
+}
+
+.tl-line-tick[data-sync] {
+  width: 3px;
+  margin-left: -1.5px;
+  height: 22px;
+  background: var(--tl-sync);
+  box-shadow: 0 0 6px var(--tl-sync);
 }
 
 /* Sits just above the first point. */

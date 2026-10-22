@@ -26,6 +26,24 @@ describe('buildTrackPath', () => {
   })
 })
 
+describe('buildTrackPath with x positions', () => {
+  it('places each point at its x and holds to the content end', () => {
+    expect(buildTrackPath([120, 140, 100], 60, 200, 10, [0, 1.5, 2.25])).toBe('M0 80 L1.5 60 L2.25 100 H10')
+  })
+
+  it('rounds fractional positions to 4 decimals', () => {
+    expect(buildTrackPath([90, 90], 60, 200, 3, [0, 4 / 3])).toBe('M0 110 L1.3333 110 H3')
+  })
+
+  it('omits the tail when the last x already reaches the content end', () => {
+    expect(buildTrackPath([120, 120], 60, 200, 2, [0, 2])).toBe('M0 80 L2 80')
+  })
+
+  it('matches the default path when xs are the step indices', () => {
+    expect(buildTrackPath([120, 140, 100], 60, 200, 10, [0, 1, 2])).toBe(buildTrackPath([120, 140, 100], 60, 200, 10))
+  })
+})
+
 describe('trackViewBox', () => {
   it('is steps wide and (bpmMax - bpmMin) tall', () => {
     expect(trackViewBox(60, 200, 48)).toBe('0 0 48 140')
