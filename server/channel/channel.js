@@ -5,7 +5,9 @@ class Channel {
   constructor(channel, BPMvalues, midiAccess, Port) {
     this.id = channel;
     this.BPMvalues = BPMvalues; //array van ints -> BPM per step
-    this.sequence = [50, 51, -1, -1, -1, 60, 65]; // array van ints -> noten
+    this.sequence = [
+      50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1,
+    ]; // array van ints -> noten
     this.midiAccess = midiAccess;
     this.Port = Port;
     this.message = null;
