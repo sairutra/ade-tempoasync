@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { modelReducer } from './editReducer'
 import { buildNewTrack, NEW_TRACK_MIN_STEPS, suggestChannel } from './newTrack'
 import { createTimelineState } from './selectors'
+import { STEPS_PER_BAR } from './tempo'
 import type { TrackInput } from './types'
 
 const t = (id: string, length: number, color?: string): TrackInput => ({
@@ -10,6 +11,7 @@ const t = (id: string, length: number, color?: string): TrackInput => ({
 
 describe('buildNewTrack', () => {
   it('builds a flat line with nodes at both ends', () => {
+    expect(NEW_TRACK_MIN_STEPS).toBe(32 * STEPS_PER_BAR)
     const track = buildNewTrack(createTimelineState([]), { name: ' Synth ', color: '#3d85c6', bpm: 95, channel: 1 })
     expect(track).toMatchObject({ id: 'synth', name: 'Synth', color: '#3d85c6', sourceOffset: 0, channel: 1 })
     expect(track.bpms).toHaveLength(NEW_TRACK_MIN_STEPS)
@@ -18,10 +20,10 @@ describe('buildNewTrack', () => {
   })
 
   it('spans from step 0 to the current content end', () => {
-    const state = createTimelineState([t('a', 200)])
+    const state = createTimelineState([t('a', NEW_TRACK_MIN_STEPS + 200)])
     const track = buildNewTrack(state, { name: 'B', color: '#000000', bpm: 120, channel: 1 })
-    expect(track.bpms).toHaveLength(200)
-    expect(track.nodes).toEqual([0, 199])
+    expect(track.bpms).toHaveLength(NEW_TRACK_MIN_STEPS + 200)
+    expect(track.nodes).toEqual([0, NEW_TRACK_MIN_STEPS + 199])
   })
 
   it('makes ids unique', () => {

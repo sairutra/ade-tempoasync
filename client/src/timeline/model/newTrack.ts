@@ -5,7 +5,8 @@ import { STEPS_PER_BAR } from './tempo'
 import type { TimelineState, Track } from './types'
 
 /** A new line spans at least this many steps, so it has room to be shaped even on an empty timeline. */
-export const NEW_TRACK_MIN_STEPS = 4 * STEPS_PER_BAR
+export const NEW_TRACK_MIN_BARS = 32
+export const NEW_TRACK_MIN_STEPS = NEW_TRACK_MIN_BARS * STEPS_PER_BAR
 
 /** Channel numbers are integers in this range. */
 export const CHANNEL_MIN = 1
