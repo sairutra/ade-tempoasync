@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
-    "dev": "DEBUG=server:* npm start"
+    "dev": "DEBUG=server:* npm start",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "cookie-parser": "~1.4.4",
@@ -14,6 +15,7 @@
     "jade": "~1.11.0",
     "jzz": "^1.9.6",
     "morgan": "~1.9.1",
-    "webmidi": "^3.3.1"
+    "webmidi": "^3.3.1",
+    "ws": "^8.22.0"
   }
 }
