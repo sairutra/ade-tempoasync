@@ -104,7 +104,7 @@ test("Channel.buildSteps: rests send nothing, notes cycle, delay is a 16th note"
 
   const channel = new Channel(1, [120, 60, 120, 240, 90], midiAccess, "fake-port");
   channel.setSequence([50, -1, 60]);
-  const steps = channel.buildSteps();
+  const steps = [...channel.buildSteps()];
 
   assert.equal(steps.length, 5);
   assert.deepEqual(steps.map((s) => s.delayMs), [120, 60, 120, 240, 90].map((b) => 60000 / b / 4));
@@ -128,6 +128,43 @@ test("Channel.buildSteps: rests send nothing, notes cycle, delay is a 16th note"
     [1500, 1500 + 60000 / 240 / 4],
     [],
   ]);
+});
+
+test("Channel: BPM changes during playback apply to steps not yet scheduled", async () => {
+  // 1500 BPM = 10 ms per 16th note, 750 BPM = 20 ms.
+  const noteOns = [];
+  let channel;
+  const output = {
+    send: (msg, time) => {
+      if ((msg[0] & 0xf0) !== 0x90) return;
+      noteOns.push(time);
+      // While step 1 is playing, slow down steps 2..5 and append two extra steps.
+      if (noteOns.length === 2) {
+        channel.updateBPMvalues(2, 6, [750, 750, 750, 750]);
+        channel.BPMvalues.push(1500, 1500);
+      }
+    },
+  };
+  const midiAccess = { outputs: { get: () => output } };
+  channel = new Channel(1, Array(6).fill(1500), midiAccess, "fake-port");
+  channel.setSequence([60]);
+
+  const log = console.log;
+  console.log = () => {};
+  try {
+    channel.play();
+    await waitUntilIdle(channel.player, 2000);
+  } finally {
+    console.log = log;
+  }
+
+  assert.equal(noteOns.length, 8, "steps appended during playback are played");
+  const gaps = noteOns.slice(1).map((t, i) => t - noteOns[i]);
+  // Steps 0 and 1 were already scheduled at 10 ms; steps 2..5 now last 20 ms.
+  const expected = [10, 10, 20, 20, 20, 20, 10];
+  for (let i = 0; i < gaps.length; i++) {
+    assert.ok(Math.abs(gaps[i] - expected[i]) < 1e-6, `gap ${i}: ${gaps[i]} ms, expected ${expected[i]}`);
+  }
 });
 
 test("routes: /sequence/start and /sequence/stop", async (t) => {

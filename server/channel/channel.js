@@ -42,12 +42,18 @@ class Channel {
   // -1 is a rest. Each step lasts one 16th note at its own BPM.
   // The player places each step on an absolute timeline and passes its
   // scheduled time `at`; the note is sent stamped with that timestamp.
-  // Steps are built when playback starts, so BPM changes made during playback
-  // apply to the next play(), not the one already running.
-  buildSteps() {
-    return this.BPMvalues.map((bpm, i) => {
+  // Steps are produced lazily: the player pulls step i right after step i-1
+  // has been scheduled, and that is when step i's BPM is read. So BPM changes
+  // made during playback (updateBPMvalues / setBPMvalues) apply to every step
+  // not yet scheduled, i.e. roughly one step plus the player's lookahead after
+  // the change. Steps already scheduled keep their timing. The length is
+  // re-read each step too, so growing or shrinking BPMvalues extends or ends
+  // the running pass.
+  *buildSteps() {
+    for (let i = 0; i < this.BPMvalues.length; i++) {
+      const bpm = this.BPMvalues[i];
       const note = this.sequence[i % this.sequence.length];
-      return {
+      yield {
         delayMs: 60000 / bpm / 4,
         action: async (signal, at) => {
           if (note === -1) return;
@@ -61,7 +67,7 @@ class Channel {
           ).sendMessage();
         },
       };
-    });
+    }
   }
 
   play() {
