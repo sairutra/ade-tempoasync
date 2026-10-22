@@ -11,6 +11,7 @@ var navigator = require("jzz");
 var { TimelineStore } = require("../sync/timelineStore");
 var { attachTimelineSocket } = require("../sync/wsServer");
 var Channel = require("../channel/channel");
+var Message = require("../utils/message");
 
 /**
  * Get port from environment and store in Express.
@@ -100,6 +101,7 @@ function onListening() {
     console.log("MIDI ready!");
     midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
     listInputsAndOutputs(midiAccess);
+    app.locals.midiAccess = midiAccess;
   }
   function listInputsAndOutputs(midiAccess) {
     console.log("inputs!");

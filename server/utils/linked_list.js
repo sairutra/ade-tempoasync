@@ -73,15 +73,4 @@ class DoublyLinkedList {
     }
 }
 
-// // Create new Doubly Linked List 
-// const dll = new DoublyLinkedList();
-
-// // Add elements in the list
-// dll.addItem(25);
-// dll.addItem(27);
-// dll.addItem(17);
-// dll.addItem(29);
-
-// // Display the list
-// dll.display();
 module.exports = DoublyLinkedList;

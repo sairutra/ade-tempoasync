@@ -1,3 +1,5 @@
+var Message = require('../utils/message.js');
+
 class Channel {
 	constructor(channel, BPMvalues) {
 		this.id = channel;
@@ -29,6 +31,12 @@ class Channel {
 
 	sayHi() {
 		console.log("hi from channel " + this.id);
+	}
+
+
+	createMessage(note, BPM) {
+	var msg = new Message(note, BPM);
+	return msg;
 	}
 }
 
