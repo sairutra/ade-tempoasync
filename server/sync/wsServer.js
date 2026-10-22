@@ -52,8 +52,10 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
         app.locals.project.addChannel(msg.id, msg.channel, msg.bpms);
       }
       if (msg.type === "patch") {
+        // Tracks from a snapshot have no project channel yet; skip instead of throwing
+        // (an exception here is uncaught and takes the whole server down).
         const channel = app.locals.project.channels.get(msg.trackId);
-        channel.updateBPMvalues(msg.from, msg.to, msg.bpms);
+        if (channel) channel.updateBPMvalues(msg.from, msg.to, msg.bpms);
       }
       debug("%s %s", msg.type, describe(msg));
     });
