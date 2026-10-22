@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { TimelineState } from '../model/types'
-import { withChannel } from './protocol'
+import { withChannel, withSequence } from './protocol'
 import { changedRange } from './diff'
 import type { TimelineSocket } from './socket'
 
@@ -8,18 +8,23 @@ export type BackendSink = Pick<TimelineSocket, 'latest' | 'send' | 'queuePatch'>
 
 /**
  * Sends what changed between two models. The reducer gives a new object only to the edited track,
- * and `bpms` is replaced whenever its values change, so an unchanged `bpms` reference means nothing
- * to send for that track (a node added on the line, a rename or a colour change send nothing).
+ * and `bpms` / `sequence` are replaced whenever their values change, so unchanged references mean
+ * nothing to send for that track (a node added on the line, a rename or a colour change send nothing).
  */
 export function sendModelChanges(prev: TimelineState, next: TimelineState, sink: BackendSink): void {
   if (next.projectBpm !== prev.projectBpm) sink.send({ type: 'projectBpm', bpm: next.projectBpm })
   for (const track of Object.values(next.tracks)) {
     const old = prev.tracks[track.id]
-    if (old?.bpms === track.bpms) continue
     if (!old) {
-      sink.send(withChannel({ type: 'addTrack', id: track.id, bpms: track.bpms }, track.channel))
+      sink.send(
+        withSequence(withChannel({ type: 'addTrack', id: track.id, bpms: track.bpms }, track.channel), track.sequence),
+      )
       continue
     }
+    if (old.sequence !== track.sequence && track.sequence) {
+      sink.send({ type: 'sequence', trackId: track.id, sequence: track.sequence })
+    }
+    if (old.bpms === track.bpms) continue
     const range = changedRange(old.bpms, track.bpms)
     if (range) sink.queuePatch(track.id, track.bpms, range)
   }

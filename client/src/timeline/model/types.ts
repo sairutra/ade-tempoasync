@@ -26,6 +26,11 @@ export type Track = {
   color?: string
   /** Output channel, an integer in [CHANNEL_MIN, CHANNEL_MAX] (see newTrack.ts). Absent on tracks loaded without one. */
   channel?: number
+  /**
+   * MIDI sequence the track's channel loops, one entry per 16th-note step: a MIDI note (0–127) or
+   * -1 for a rest (see sequence.ts). Absent on tracks loaded without one.
+   */
+  sequence?: number[]
 }
 
 /** A track as supplied from outside: nodes are derived from the points when omitted. */

@@ -7,6 +7,7 @@ import { contentHeight, maxScrollY, PAD_TOP, rangeHeight } from '../viewport/bpm
 import { contentWidth, xToTime } from '../viewport/viewport'
 import { AddChannelDialog } from './AddChannelDialog'
 import { BpmAxis } from './BpmAxis'
+import { EditTrackDialog } from './EditTrackDialog'
 import { BpmRangeInput } from './BpmRangeInput'
 import { GridCanvas } from './GridCanvas'
 import { Playhead } from './Playhead'
@@ -37,6 +38,7 @@ export function Timeline() {
     canScrollY.current = scrollableY
   }, [scrollableY])
   const [addingChannel, setAddingChannel] = useState(false)
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null)
   const colorsInUse = useMemo(() => usedColors(model), [model])
   const nextChannel = useMemo(() => suggestChannel(model), [model])
 
@@ -125,7 +127,7 @@ export function Timeline() {
 
         <div ref={headersRef} className="tl-headers">
           {tracks.map((track) => (
-            <TrackHeader key={track.id} track={track} />
+            <TrackHeader key={track.id} track={track} onEdit={setEditingTrackId} />
           ))}
         </div>
         <div ref={axisRef} className="tl-yaxis-cell">
@@ -206,6 +208,14 @@ export function Timeline() {
           // Like every line, the new one spans the whole timeline from step 0.
           modelActions.addTrack(channel)
           setAddingChannel(false)
+        }}
+      />
+      <EditTrackDialog
+        track={editingTrackId === null ? null : (model.tracks[editingTrackId] ?? null)}
+        onClose={() => setEditingTrackId(null)}
+        onSubmit={(trackId, changes) => {
+          modelActions.editTrack(trackId, changes)
+          setEditingTrackId(null)
         }}
       />
     </div>

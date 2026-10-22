@@ -268,7 +268,7 @@
   font-weight: 600;
 }
 
-/* Channel number, pushed to the right edge of the header. */
+/* Channel number and edit button, pushed to the right edge of the header. */
 .tl-track-channel {
   flex: 0 0 auto;
   margin-left: auto;
@@ -278,6 +278,35 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
+}
+
+.tl-track-edit {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 1;
+  border: 1px solid var(--tl-border);
+  border-radius: 3px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* With no channel badge, the button takes the right edge itself. */
+.tl-track-name + .tl-track-edit {
+  margin-left: auto;
+}
+
+.tl-track-edit:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-track-edit:focus-visible {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: 1px;
 }
 
 .tl-lanes-content {
@@ -597,4 +626,85 @@
 .tl-dialog-actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* MIDI sequence editor: 16 slots, 4 per row (one beat each). */
+.tl-sequence {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.tl-sequence > legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-sequence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tl-sequence-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tl-sequence-slot input[type='number'] {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 4px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* No spinners: they eat half of a narrow slot and push the value off-centre. */
+.tl-sequence-slot input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.tl-sequence-slot input[type='number']::-webkit-inner-spin-button,
+.tl-sequence-slot input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tl-sequence-note {
+  color: var(--tl-ruler-beat);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Read-only track data in the edit dialog. */
+.tl-track-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.tl-track-summary dt {
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-track-summary dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.tl-track-summary .tl-color-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
 }

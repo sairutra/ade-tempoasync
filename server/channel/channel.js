@@ -2,21 +2,28 @@ var Message = require("../utils/message.js");
 var SequencePlayer = require("../sequence/sequencePlayer.js");
 
 class Channel {
-  constructor(channel, BPMvalues, midiAccess, Port) {
+  // sequence: optional array of 1–16 ints, MIDI notes 0–127 or -1 for a rest
+  // (validated in sync/messages.js); defaults to the pattern below.
+  constructor(channel, BPMvalues, midiAccess, Port, sequence) {
     this.id = channel;
     this.BPMvalues = BPMvalues; //array van ints -> BPM per step
-    this.sequence = [
-      50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1,
-    ]; // array van ints -> noten
+    this.sequence = sequence
+      ? sequence.slice()
+      : [50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1, 50, -1, -1, -1]; // array van ints -> noten
     this.midiAccess = midiAccess;
     this.Port = Port;
     this.message = null;
     this.player = new SequencePlayer();
   }
 
+  // Takes effect from the next step the player pulls, so it also applies while playing.
   setSequence(sequence) {
-    console.log(sequence);
-    this.sequence = sequence;
+    if (!Array.isArray(sequence) || sequence.length === 0) {
+      console.error("setSequence called for channel " + this.id + " with an empty sequence");
+      return;
+    }
+    this.sequence = sequence.slice();
+    console.log("New sequence for channel " + this.id + ": " + this.sequence);
   }
 
   setBPMvalues(values) {

@@ -2,8 +2,10 @@
  * Validation for client → server timeline messages. Mirrors ClientMessage in
  * client/src/timeline/sync/protocol.ts:
  *
- *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel? }] }
- *   { type: 'addTrack', id, bpms, channel? }        // channel: integer 1–16
+ *   { type: 'snapshot', projectBpm, tracks: [{ id, bpms, channel?, sequence? }] }
+ *   { type: 'addTrack', id, bpms, channel?, sequence? }  // channel: integer 1–16
+ *       // sequence: 1–16 integers, each a MIDI note 0–127 or -1 for a rest
+ *   { type: 'sequence', trackId, sequence }   // the track's MIDI sequence was edited
  *   { type: 'patch', trackId, from, to, bpms, lineLength }
  *       // steps [from, to) changed to `bpms` (bpms.length === to - from); the line is then
  *       // `lineLength` steps long. If lineLength differs from the current length, to === lineLength.
@@ -44,6 +46,30 @@ function checkChannel(channel, where) {
   }
 }
 
+const SEQUENCE_MAX_LENGTH = 16;
+const MIDI_NOTE_MIN = 0;
+const MIDI_NOTE_MAX = 127;
+const REST = -1;
+
+function isStep(value) {
+  return Number.isInteger(value) && (value === REST || (value >= MIDI_NOTE_MIN && value <= MIDI_NOTE_MAX));
+}
+
+function checkSequence(sequence, where, { optional = true } = {}) {
+  if (sequence === undefined && optional) return;
+  if (!Array.isArray(sequence)) throw new ProtocolError(`${where}: sequence must be an array`);
+  if (sequence.length < 1 || sequence.length > SEQUENCE_MAX_LENGTH) {
+    throw new ProtocolError(`${where}: sequence must have 1 to ${SEQUENCE_MAX_LENGTH} steps`);
+  }
+  for (let i = 0; i < sequence.length; i++) {
+    if (!isStep(sequence[i])) {
+      throw new ProtocolError(
+        `${where}: sequence[${i}] must be an integer between ${MIDI_NOTE_MIN} and ${MIDI_NOTE_MAX}, or ${REST} for a rest`,
+      );
+    }
+  }
+}
+
 function checkBpms(bpms, where, { allowEmpty = false } = {}) {
   if (!Array.isArray(bpms)) throw new ProtocolError(`${where}: bpms must be an array`);
   if (!allowEmpty && bpms.length === 0) throw new ProtocolError(`${where}: bpms must not be empty`);
@@ -76,6 +102,7 @@ function parseMessage(raw) {
         seen.add(track.id);
         checkBpms(track.bpms, `snapshot track ${track.id}`);
         checkChannel(track.channel, `snapshot track ${track.id}`);
+        checkSequence(track.sequence, `snapshot track ${track.id}`);
       }
       return msg;
     }
@@ -83,6 +110,11 @@ function parseMessage(raw) {
       if (!isId(msg.id)) throw new ProtocolError("addTrack: id must be a non-empty string");
       checkBpms(msg.bpms, `addTrack ${msg.id}`);
       checkChannel(msg.channel, `addTrack ${msg.id}`);
+      checkSequence(msg.sequence, `addTrack ${msg.id}`);
+      return msg;
+    case "sequence":
+      if (!isId(msg.trackId)) throw new ProtocolError("sequence: trackId must be a non-empty string");
+      checkSequence(msg.sequence, `sequence ${msg.trackId}`, { optional: false });
       return msg;
     case "patch":
       if (!isId(msg.trackId)) throw new ProtocolError("patch: trackId must be a non-empty string");
@@ -108,4 +140,13 @@ function parseMessage(raw) {
   }
 }
 
-module.exports = { parseMessage, ProtocolError, CHANNEL_MIN, CHANNEL_MAX };
+module.exports = {
+  parseMessage,
+  ProtocolError,
+  CHANNEL_MIN,
+  CHANNEL_MAX,
+  SEQUENCE_MAX_LENGTH,
+  MIDI_NOTE_MIN,
+  MIDI_NOTE_MAX,
+  REST,
+};

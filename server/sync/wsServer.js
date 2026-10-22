@@ -49,13 +49,18 @@ function attachTimelineSocket(httpServer, { store, path = "/ws" } = {}) {
         );
       }
       if (msg.type === "addTrack") {
-        app.locals.project.addChannel(msg.id, msg.channel - 1, msg.bpms);
+        app.locals.project.addChannel(msg.id, msg.channel - 1, msg.bpms, msg.sequence);
       }
       if (msg.type === "patch") {
         // Tracks from a snapshot have no project channel yet; skip instead of throwing
         // (an exception here is uncaught and takes the whole server down).
         const channel = app.locals.project.channels.get(msg.trackId);
         if (channel) channel.updateBPMvalues(msg.from, msg.to, msg.bpms);
+      }
+      if (msg.type === "sequence") {
+        // Like a patch: a track from a snapshot has no project channel yet, so skip it.
+        const channel = app.locals.project.channels.get(msg.trackId);
+        if (channel) channel.setSequence(msg.sequence);
       }
       if (msg.type === "start") {
         // Every channel starts together; one already playing is left alone
@@ -92,6 +97,8 @@ function describe(msg) {
       return `${msg.id} (${msg.bpms.length} steps${msg.channel === undefined ? "" : `, channel ${msg.channel}`})`;
     case "patch":
       return `${msg.trackId} [${msg.from}, ${msg.to}) of ${msg.lineLength} steps`;
+    case "sequence":
+      return `${msg.trackId} [${msg.sequence.join(", ")}]`;
     case "projectBpm":
       return String(msg.bpm);
     case "start":

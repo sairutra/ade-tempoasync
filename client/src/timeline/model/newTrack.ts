@@ -1,5 +1,6 @@
 import { distinctColor } from './colors'
 import { roundBpm } from './nodes'
+import { isValidSequence } from './sequence'
 import { getContentEndStep } from './selectors'
 import { STEPS_PER_BAR } from './tempo'
 import type { TimelineState, Track } from './types'
@@ -31,6 +32,8 @@ export type NewTrackInput = {
   bpm: number
   /** Channel number, an integer in [CHANNEL_MIN, CHANNEL_MAX]. */
   channel: number
+  /** MIDI sequence, 1–16 steps of MIDI notes (0–127) or -1 for a rest (see sequence.ts). */
+  sequence: number[]
 }
 
 /** Colours already in use by tracks of `state`. */
@@ -56,6 +59,7 @@ export function buildNewTrack(state: TimelineState, input: NewTrackInput): Track
   if (!name) throw new Error('Track name is required')
   if (!(input.bpm > 0) || !Number.isFinite(input.bpm)) throw new Error(`Invalid BPM ${input.bpm}`)
   if (!isValidChannel(input.channel)) throw new Error(`Invalid channel ${input.channel}`)
+  if (!isValidSequence(input.sequence)) throw new Error(`Invalid sequence ${JSON.stringify(input.sequence)}`)
 
   const length = Math.max(NEW_TRACK_MIN_STEPS, getContentEndStep(state) + 1)
   const bpm = roundBpm(input.bpm)
@@ -67,5 +71,6 @@ export function buildNewTrack(state: TimelineState, input: NewTrackInput): Track
     sourceOffset: 0,
     color: distinctColor(input.color, usedColors(state)),
     channel: input.channel,
+    sequence: input.sequence.slice(),
   }
 }

@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { distinctColor, normalizeHex, suggestColor } from '../model/colors'
 import { CHANNEL_MAX, CHANNEL_MIN, isValidChannel, type NewTrackInput } from '../model/newTrack'
+import { DEFAULT_SEQUENCE, sequenceFromSlots, slotsFromSequence } from '../model/sequence'
+import { SequenceInput } from './SequenceInput'
 
 export const CHANNEL_BPM_MIN = 1
 export const CHANNEL_BPM_MAX = 999
@@ -18,7 +20,8 @@ type Props = {
 }
 
 /**
- * Modal form for a new channel: name, colour, BPM and channel number (1–16). A colour already used by another track is
+ * Modal form for a new channel: name, colour, BPM, channel number (1–16) and a 16-step MIDI sequence
+ * (middle C on every downbeat by default). A colour already used by another track is
  * shown (and saved) as a slightly different shade, so every line stays distinguishable.
  * Uses <dialog>.showModal(): focus trap, Escape and the backdrop come from the browser.
  */
@@ -29,6 +32,7 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
   const [color, setColor] = useState('#e07a5f')
   const [bpm, setBpm] = useState(String(defaultBpm))
   const [channel, setChannel] = useState(String(defaultChannel))
+  const [slots, setSlots] = useState(() => slotsFromSequence(DEFAULT_SEQUENCE))
 
   // Reset the form each time it opens, with a colour nobody uses yet.
   useEffect(() => {
@@ -38,6 +42,7 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
       setColor(suggestColor(usedColors))
       setBpm(String(defaultBpm))
       setChannel(String(defaultChannel))
+      setSlots(slotsFromSequence(DEFAULT_SEQUENCE))
       dialog.showModal()
     } else if (!open && dialog.open) {
       dialog.close()
@@ -55,12 +60,13 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
   const nameValid = name.trim() !== ''
   const channelValue = Number(channel)
   const channelValid = channel.trim() !== '' && isValidChannel(channelValue)
-  const valid = nameValid && bpmValid && channelValid
+  const sequence = sequenceFromSlots(slots)
+  const valid = nameValid && bpmValid && channelValid && sequence !== null
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({ name: name.trim(), color: finalColor, bpm: bpmValue, channel: channelValue })
+    if (!valid || sequence === null) return
+    onSubmit({ name: name.trim(), color: finalColor, bpm: bpmValue, channel: channelValue, sequence })
   }
 
   return (
@@ -148,6 +154,8 @@ export function AddChannelDialog({ open, usedColors, defaultBpm, defaultChannel,
             </p>
           )}
         </label>
+
+        <SequenceInput slots={slots} onChange={setSlots} />
 
         <div className="tl-dialog-actions">
           <button type="button" onClick={onClose}>Cancel</button>
