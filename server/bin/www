@@ -8,7 +8,10 @@ var app = require("../app");
 var debug = require("debug")("server:server");
 var http = require("http");
 var navigator = require("jzz");
-var Channel = require('../channel/channel')
+var { TimelineStore } = require("../sync/timelineStore");
+var { attachTimelineSocket } = require("../sync/wsServer");
+var Channel = require("../channel/channel");
+var Message = require("../utils/message");
 
 /**
  * Get port from environment and store in Express.
@@ -24,13 +27,20 @@ app.set("port", port);
 var server = http.createServer(app);
 
 /**
+ * Timeline sync socket: the client streams track edits to /ws (see sync/).
+ */
+
+var timeline = new TimelineStore();
+app.set("timeline", timeline);
+attachTimelineSocket(server, { store: timeline, path: "/ws" });
+
+/**
  * Listen on provided port, on all network interfaces.
  */
 
 server.listen(port);
 server.on("error", onError);
 server.on("listening", onListening);
-
 
 /**
  * Normalize a port into a number, string, or false.
@@ -91,6 +101,7 @@ function onListening() {
     console.log("MIDI ready!");
     midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
     listInputsAndOutputs(midiAccess);
+    app.locals.midiAccess = midiAccess;
   }
   function listInputsAndOutputs(midiAccess) {
     console.log("inputs!");

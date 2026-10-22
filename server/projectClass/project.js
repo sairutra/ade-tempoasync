@@ -1,11 +1,13 @@
 var Channel = require('../channel/channel.js');
 
 class Project {
+
 	constructor() {
 		this.channels = new Map;
 		this.masterBPM = 120;
 		this.stepLength = 16;
 	}
+
 
 	setMasterBPM(BPM) {
 		this.masterBPM = BPM;
@@ -15,12 +17,12 @@ class Project {
 		this.stepLength = len;
 	}
 
-	addChannel(name, id) {
+	addChannel(name, id, BPMvalues) {
 		if (this.channels.size >= 4) {
 			console.error("Max channel capacity of 4 already reached");
 			return ;
 		}
-		this.channels.set(name, new Channel(id));
+		this.channels.set(name, new Channel(id, BPMvalues));
 	}
 
 	printChannels() {

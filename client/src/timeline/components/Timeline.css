@@ -1,0 +1,600 @@
+.tl-root {
+  --tl-header-width: 160px;
+  --tl-axis-width: 52px;
+  --tl-ruler-height: 28px;
+  --tl-track-height: 64px;
+  --tl-bg: #1e1f24;
+  --tl-panel: #26282e;
+  --tl-border: #3a3d45;
+  --tl-text: #d7d9de;
+  --tl-ruler-tick: #8b8f99;
+  /* Tick hierarchy: bars brightest, beats medium, 16th steps faintest. */
+  --tl-ruler-bar: #c3c6cd;
+  --tl-ruler-beat: #80848e;
+  --tl-ruler-step: #565a63;
+  --tl-grid-bar: rgba(255, 255, 255, 0.16);
+  --tl-grid-beat: rgba(255, 255, 255, 0.07);
+  --tl-grid-step: rgba(255, 255, 255, 0.03);
+  --tl-line-default: #7a7f8c;
+  --tl-playhead: #ff6b5e;
+  --tl-font: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  font: 12px var(--tl-font);
+}
+
+.tl {
+  position: relative; /* containing block for the playhead layer */
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  /* headers | BPM axis | lanes | vertical scrollbar */
+  grid-template-columns: var(--tl-header-width) var(--tl-axis-width) minmax(0, 1fr) auto;
+  /* ruler | lanes | horizontal scrollbar */
+  grid-template-rows: var(--tl-ruler-height) minmax(0, 1fr) auto;
+  user-select: none;
+  overscroll-behavior: contain;
+}
+
+/* Transport: play/pause, stop, position readout. */
+.tl-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 8px;
+  background: var(--tl-panel);
+  border-bottom: 1px solid var(--tl-border);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.tl-transport-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: var(--tl-text);
+  cursor: pointer;
+}
+
+.tl-transport-btn:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-transport-btn[data-active] {
+  color: var(--tl-playhead);
+  border-color: var(--tl-playhead);
+}
+
+.tl-transport-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.tl-transport-pos {
+  min-width: 64px;
+  margin-left: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tl-transport-time {
+  min-width: 64px;
+  color: var(--tl-ruler-beat);
+}
+
+.tl-transport-bpm {
+  margin-left: auto;
+  color: var(--tl-ruler-bar);
+}
+
+.tl-toolbar {
+  grid-area: 1 / 1;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0 6px;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+  border-bottom: 1px solid var(--tl-border);
+}
+
+.tl-toolbar button {
+  min-width: 26px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-toolbar button:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-ruler,
+.tl-grid {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tl-ruler {
+  background: var(--tl-panel);
+}
+
+.tl-ruler-wrap {
+  grid-area: 1 / 3;
+  min-width: 0;
+  cursor: text; /* I-beam: "place the playhead here" */
+  touch-action: none;
+}
+
+.tl-headers {
+  grid-area: 2 / 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+/* BPM range ends: max above the axis, min below it. */
+.tl-range-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+.tl-range-cell-max {
+  grid-area: 1 / 2;
+  border-bottom: 1px solid var(--tl-border);
+}
+
+.tl-range-cell-min {
+  grid-area: 3 / 2;
+  border-top: 1px solid var(--tl-border);
+}
+
+.tl-range-input {
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Arrow keys step the value; the tiny native spinners don't fit the column. */
+.tl-range-input::-webkit-inner-spin-button,
+.tl-range-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tl-range-input:hover {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-range-input:focus-visible {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: -1px;
+}
+
+/* Y-axis: BPM labels, drag to scroll vertically. */
+.tl-yaxis-cell {
+  grid-area: 2 / 2;
+  min-height: 0;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+.tl-yaxis {
+  width: 100%;
+  height: 100%;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.tl-yaxis-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Visible lane area: clips the content, which is moved by one transform on both axes. */
+.tl-lanes {
+  grid-area: 2 / 3;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* A canvas is a replaced element: `inset` won't stretch it, so size it explicitly. */
+.tl-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.tl-track-header {
+  display: flex;
+  align-items: center;
+  height: var(--tl-track-height);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--tl-border);
+  box-sizing: border-box;
+  gap: 8px;
+}
+
+/* Same colour as the track's line in .tl-lines (shared --tl-line-color, same fallback). */
+.tl-track-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--tl-line-color, var(--tl-line-default));
+}
+
+.tl-track-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Channel number, pushed to the right edge of the header. */
+.tl-track-channel {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 1px 5px;
+  border: 1px solid var(--tl-border);
+  border-radius: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.tl-lanes-content {
+  position: relative;
+  will-change: transform;
+}
+
+/* Lines span bpmMax (top) to bpmMin (bottom) in here; top and height come from the BPM viewport. */
+.tl-lines {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+/* One svg per track; it spans the full lane height and stretches its model-unit viewBox. */
+.tl-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: visible; /* clamped points sit exactly on the edges; don't clip half the stroke */
+  pointer-events: none;
+}
+
+.tl-line path {
+  fill: none;
+  stroke: var(--tl-line-color, var(--tl-line-default));
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* Invisible, wider copy of the line that receives clicks (adds a node). */
+.tl-line path.tl-line-hit {
+  stroke: transparent;
+  stroke-width: 12px;
+  pointer-events: stroke;
+  cursor: copy;
+  touch-action: none;
+}
+
+/* Ctrl+drag in progress: the whole line moves vertically. */
+.tl-line[data-shifting] path.tl-line-hit,
+.tl-line[data-shifting] ~ .tl-node {
+  cursor: grabbing;
+}
+
+/* Editing node: centred on its point, drags vertically or horizontally (one axis per drag). */
+.tl-node {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border: 2px solid var(--tl-line-color, var(--tl-line-default));
+  border-radius: 50%;
+  background: var(--tl-bg);
+  transform: translate(-50%, -50%);
+  cursor: move;
+  touch-action: none;
+}
+
+/* Once a drag picks its axis, the cursor shows it (on the handle and over the captured line). */
+.tl-node[data-axis='x'],
+.tl-line[data-axis='x'] path.tl-line-hit {
+  cursor: ew-resize;
+}
+
+.tl-node[data-axis='y'],
+.tl-line[data-axis='y'] path.tl-line-hit {
+  cursor: ns-resize;
+}
+
+/* Zoomed out: a node per step would merge into a bead chain, so shrink them (still draggable). */
+.tl-node[data-dense] {
+  width: 5px;
+  height: 5px;
+  border-width: 1px;
+}
+
+/* Grow on hover with a halo instead of resizing, so neighbours don't shift. */
+.tl-node::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+}
+
+.tl-node:hover,
+.tl-node[data-active] {
+  z-index: 1;
+  background: var(--tl-line-color, var(--tl-line-default));
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+}
+
+/* Live BPM readout while dragging. */
+.tl-node-value {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--tl-panel);
+  border: 1px solid var(--tl-border);
+  color: var(--tl-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Sits just above the first point. */
+.tl-line-name {
+  position: absolute;
+  left: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--tl-line-color, var(--tl-line-default));
+  pointer-events: none;
+}
+
+.tl-scrollbar-spacer {
+  grid-area: 3 / 1;
+  background: var(--tl-panel);
+  border-right: 1px solid var(--tl-border);
+}
+
+.tl-scrollbar {
+  grid-area: 3 / 3;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  background: var(--tl-panel);
+}
+
+.tl-scrollbar.tl-scrollbar-y {
+  grid-area: 2 / 4;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+.tl-scrollbar-corner {
+  grid-area: 3 / 4;
+  background: var(--tl-panel);
+}
+
+/*
+ * Spans the ruler and lane rows of the lane column. Absolutely positioned grid child: it uses
+ * that grid area as its box without taking part in auto-placement.
+ */
+.tl-playhead-layer {
+  position: absolute;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--tl-playhead);
+  will-change: transform;
+}
+
+/* Head marker in the ruler. */
+.tl-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  border: 5px solid transparent;
+  border-top: 7px solid var(--tl-playhead);
+}
+
+/* Pushed to the right edge of the toolbar cell, away from the zoom controls. */
+.tl-toolbar .tl-toolbar-add {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Add-channel dialog. Lives inside .tl-root, so it inherits the timeline's colour tokens. */
+.tl-dialog {
+  width: min(320px, calc(100vw - 32px));
+  padding: 0; /* the form carries the padding, so a click on the dialog box itself is the backdrop */
+  border: 1px solid var(--tl-border);
+  border-radius: 8px;
+  background: var(--tl-panel);
+  color: var(--tl-text);
+  font: 13px var(--tl-font);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tl-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.tl-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.tl-dialog-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tl-field > span,
+.tl-field > label {
+  color: var(--tl-ruler-bar);
+  font-weight: 600;
+}
+
+.tl-field input[type='text'],
+.tl-field input[type='number'] {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+}
+
+.tl-field input:focus-visible {
+  outline: 2px solid var(--tl-ruler-tick);
+  outline-offset: 1px;
+}
+
+.tl-field input[aria-invalid='true'] {
+  border-color: var(--tl-playhead);
+}
+
+.tl-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-color-row input[type='color'] {
+  width: 40px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  cursor: pointer;
+}
+
+/* What the line will actually be drawn with (after any shade adjustment). */
+.tl-color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--tl-border);
+}
+
+.tl-color-row code {
+  color: var(--tl-ruler-beat);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-field-hint {
+  margin: 0;
+  color: var(--tl-ruler-beat);
+  font-size: 12px;
+}
+
+.tl-field-error {
+  color: var(--tl-playhead);
+}
+
+.tl-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tl-dialog-actions button {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--tl-border);
+  border-radius: 4px;
+  background: var(--tl-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tl-dialog-actions button:hover:not(:disabled) {
+  border-color: var(--tl-ruler-tick);
+}
+
+.tl-dialog-actions .tl-btn-primary {
+  border-color: var(--tl-text);
+  background: var(--tl-text);
+  color: var(--tl-bg);
+  font-weight: 600;
+}
+
+.tl-dialog-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
